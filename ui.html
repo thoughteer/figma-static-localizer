@@ -3,7 +3,7 @@
         @import url('https://rsms.me/inter/inter.css');
 
         body {
-            font-family: Inter;
+            font-family: Inter, sans-serif;
             font-size: 11px;
             margin: 0.5em;
         }
@@ -16,7 +16,7 @@
             font-weight: 600;
         }
 
-        input, select, textarea, button {
+        input, textarea, button {
             font-family: inherit;
         }
 
@@ -32,24 +32,23 @@
     </style>
 </head>
 <body>
-    <form>
-        <div class="panel">
-            <label for="serializedDictionary">Dictionary (TSV)</label><br/>
-            <input type="file" id="dictionaryFile"/>
-            <textarea id="serializedDictionary" rows="3" wrap="soft"></textarea>
-        </div>
-        <div class="panel">
-            <label for="serializedExceptions">Exceptions (one regular expression per line)</label><br/>
-            <input type="file" id="exceptionsFile"/>
-            <textarea id="serializedExceptions" rows="3" wrap="soft"></textarea>
-        </div>
-        <div class="panel">
-            <input id="sourceLanguage"/>&nbsp;&rarr;&nbsp;<input id="targetLanguage"/>
-        </div>
-        <div class="panel">
-            <button id="translate" disabled>Translate</button>
-        </div>
-    </form>
+    <div class="panel">
+        <label for="serializedDictionary">Dictionary (TSV)</label><br/>
+        <input type="file" id="dictionaryFile"/>
+        <textarea id="serializedDictionary" rows="3" wrap="off"></textarea>
+    </div>
+    <div class="panel">
+        <label for="serializedExceptions">Exceptions (one regular expression per line)</label><br/>
+        <input type="file" id="exceptionsFile"/>
+        <textarea id="serializedExceptions" rows="3" wrap="off"></textarea>
+    </div>
+    <div class="panel">
+        <input id="sourceLanguage"/>&nbsp;&rarr;&nbsp;<input id="targetLanguage"/>
+    </div>
+    <div class="panel">
+        <button id="translate" disabled>Translate</button>
+    </div>
+    <div class="panel" id="log"></div>
 
     <script>
 
@@ -64,6 +63,8 @@
                     document.getElementById(field).value = message.settings[field];
                 });
                 document.getElementById('translate').disabled = false;
+            } else if (message.type === 'log') {
+                document.getElementById('log').innerHTML = message.log;
             }
         };
 
@@ -90,6 +91,10 @@
                 document.getElementById(holderId).value = e.target.result;
             };
             reader.readAsText(file);
+        }
+
+        function focusNode(id) {
+            parent.postMessage({ pluginMessage: { type: 'focus-node', id } }, '*');
         }
 
     </script>

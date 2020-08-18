@@ -1,7 +1,7 @@
 {
-  "name": "static-localizer",
+  "name": "figma-static-localizer",
   "version": "1.0.0",
-  "description": "Your Figma Plugin",
+  "description": "Figma Static Localizer",
   "main": "code.js",
   "scripts": {
     "build": "tsc -p tsconfig.json"
@@ -11,6 +11,5 @@
   "devDependencies": {
     "@figma/plugin-typings": "^1.16.1"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }

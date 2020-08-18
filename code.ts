@@ -1,3 +1,5 @@
+const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
+
 const DEFAULTS = {
     serializedDictionary: 'RU\tEN\nПривет!\tHi!',
     serializedExceptions: 'Joom',
@@ -8,7 +10,7 @@ const DEFAULTS = {
 
 async function loadSettings() {
     const result = {};
-    const promises = Object.keys(DEFAULTS).map(field => figma.clientStorage.getAsync('StaticLocalizer.' + field).then(value => ({field, value: value || DEFAULTS[field]})));
+    const promises = Object.keys(DEFAULTS).map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({field, value: value || DEFAULTS[field]})));
     (await Promise.all(promises)).forEach(({field, value}) => {
         result[field] = value;
     });
@@ -25,7 +27,7 @@ async function translateSelection(settings) {
 async function parseDictionary(serializedDictionary) {
     const table = escape(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => unescape(field.trim())));
     if (table.length < 2) {
-        throw 'empty dictionary';
+        throw {error: 'empty dictionary'};
     }
     const header = table[0];
     const expectedColumnCount = header.length;
@@ -33,7 +35,7 @@ async function parseDictionary(serializedDictionary) {
     console.log('Dictionary:', {header, rows});
     rows.forEach((row, index) => {
         if (row.length != expectedColumnCount) {
-            throw 'row #' + (index + 2) + ' of the dictionary has ' + row.length + ' (not ' + expectedColumnCount + ') columns';
+            throw {error: 'row #' + (index + 2) + ' of the dictionary has ' + row.length + ' (not ' + expectedColumnCount + ') columns'};
         }
     });
     return {header, rows};
@@ -42,20 +44,19 @@ async function parseDictionary(serializedDictionary) {
 async function getMapping(dictionary, sourceLanguage, targetLanguage) {
     const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
     if (sourceColumnIndex == -1) {
-        throw sourceLanguage + ' not listed in [' + dictionary.header + ']';
+        throw {error: sourceLanguage + ' not listed in [' + dictionary.header + ']'};
     }
     const targetColumnIndex = dictionary.header.indexOf(targetLanguage);
     if (targetColumnIndex == -1) {
-        throw targetLanguage + ' not listed in [' + dictionary.header + ']';
+        throw {error: targetLanguage + ' not listed in [' + dictionary.header + ']'};
     }
     const result = {};
     dictionary.rows.forEach(row => {
         const sourceString = row[sourceColumnIndex];
         const targetString = row[targetColumnIndex];
-        if (targetString.trim() === '') {
-            throw 'no translation for `' + sourceString + '` in the dictionary';
+        if (targetString.trim() !== '') {
+            result[sourceString] = targetString;
         }
-        result[sourceString] = targetString;
     });
     console.log('Extracted mapping:', result);
     return result;
@@ -71,9 +72,8 @@ async function replaceAllTexts(mapping, exceptions) {
     const replacements = await Promise.all(textNodes.map(node => computeReplacement(node, mapping, exceptions)));
     const failures = replacements.filter(r => r !== null && 'error' in r);
     if (failures.length > 0) {
-        figma.viewport.scrollAndZoomIntoView([failures[0].node]);
         console.log('Failures:', failures);
-        throw 'found some untranslatable nodes (see console)';
+        throw {error: 'found some untranslatable nodes', log: prepareLog(failures)};
     }
 
     await Promise.all(replacements.filter(r => r !== null).map(replaceText));
@@ -98,20 +98,22 @@ async function computeReplacement(node, mapping, exceptions) {
     }
 
     if (!(content in mapping)) {
-        return {node, error: 'no translation', content};
+        return {node, error: 'no translation', log: [content]};
     }
 
-    console.log('Computing replacement for `' + content + '`');
+    const log = [];
+
+    log.push('Computing replacement for `' + content + '`');
 
     const sections = sliceIntoSections(node);
-    console.log('Sections:', sections);
+    log.push('Sections: ' + sections.map(({from, to}) => from + '-' + to).join(', '));
 
     const styles = [];
     const styleIds = new Set();
-    sections.forEach(({style}) => {
+    sections.forEach(({from, to, style}) => {
         if (!styleIds.has(style.id)) {
             styleIds.add(style.id);
-            styles.push(style);
+            styles.push({humanId: from + '-' + to, ...style});
         }
     });
 
@@ -123,34 +125,36 @@ async function computeReplacement(node, mapping, exceptions) {
     };
 
     for (let baseStyleCandidate of styles) {
-        console.log('Base style candidate:', baseStyleCandidate);
+        log.push('Base style candidate: ' + baseStyleCandidate.humanId);
         let ok = true;
         result.modifiers.length = 0;
         for (let {from, to, style} of sections) {
             if (style.id === baseStyleCandidate.id) {
-                console.log('Section `' + node.characters.slice(from, to) + '` has the base style: ignore');
+                log.push('Section `' + node.characters.slice(from, to) + '` has the base style: ignored');
                 continue;
             }
             const sectionContent = normalizeContent(node.characters.slice(from, to));
-            console.log('Section `' + sectionContent + '` has a non-base style: needs translation');
-            if (!(sectionContent in mapping)) {
-                console.log('No translation found for the section: skipping the base style candidate');
+            log.push('Section `' + sectionContent + '` has a non-base style: needs translation');
+            let sectionTranslation = sectionContent;
+            if (sectionContent in mapping) {
+                sectionTranslation = mapping[sectionContent];
+            } else if (!keepAsIs(sectionContent, exceptions)) {
+                log.push('No translation found: skipping the candidate');
                 ok = false;
                 break;
             }
-            const sectionTranslation = mapping[sectionContent];
             const index = result.translation.indexOf(sectionTranslation);
             if (index == -1) {
-                console.log('Cannot find `' + sectionTranslation + '` within `' + result.translation + '`: skipping the base style candidate');
+                log.push('Cannot find `' + sectionTranslation + '` within `' + result.translation + '`: skipping the candidate');
                 ok = false;
                 break;
             }
             if (result.translation.indexOf(sectionTranslation, index + 1) != -1) {
-                console.log('Found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`: skipping the base style candidate');
+                log.push('Found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`: skipping the candidate');
                 ok = false;
                 break;
             }
-            console.log('Translated the section');
+            log.push('Section translated');
             result.modifiers.push({from: index, to: index + sectionTranslation.length, style});
         }
         if (ok) {
@@ -159,8 +163,7 @@ async function computeReplacement(node, mapping, exceptions) {
         }
     }
     if (result.baseStyle === null) {
-        console.log('Failed to determine a base style for `' + content + '`');
-        return {node, error: 'failed to determine a base style', content};
+        return {node, error: 'cannot determine a base style', log};
     }
 
     console.log('Replacement:', result);
@@ -169,7 +172,7 @@ async function computeReplacement(node, mapping, exceptions) {
 }
 
 function normalizeContent(string) {
-    return string.replace(/[\u000A\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
+    return string.replace(/[\u000A\u2028\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
 }
 
 function keepAsIs(string, exceptions) {
@@ -197,6 +200,14 @@ function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.c
         leftSections.pop();
     }
     return leftSections.concat(rightSections);
+}
+
+function prepareLog(failedReplacements) {
+    return failedReplacements.map(({node, error, log}) => (
+        '<a href="javascript:focusNode(\'' + node.id + '\');">' + node.id + '</a><br/>' +
+        error + '<br/>' +
+        '<pre>' + log.join('\n') + '</pre>'
+    )).join('<br/>');
 }
 
 async function replaceText(replacement) {
@@ -273,7 +284,7 @@ function setSectionStyle(node: TextNode, from, to, style) {
 }
 
 
-figma.showUI(__html__, {width: 400, height: 300});
+figma.showUI(__html__, {width: 400, height: 400});
 
 figma.ui.onmessage = async message => {
     if (message.type === 'load-settings') {
@@ -284,20 +295,27 @@ figma.ui.onmessage = async message => {
             settings,
         };
         figma.ui.postMessage(response);
-        return;
-    }
-
-    if (message.type === 'translate-selection') {
-        const promises = Object.keys(message.settings).map(field => figma.clientStorage.setAsync('StaticLocalizer.' + field, message.settings[field]));
+    } else if (message.type === 'translate-selection') {
+        const promises = Object.keys(message.settings).map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, message.settings[field]));
         await Promise.all(promises);
         await translateSelection(message.settings)
             .then(() => {
-                figma.notify('Successfully localized selected components');
+                figma.notify('Done');
+                figma.closePlugin();
             })
             .catch(reason => {
-                figma.notify('Localization failed: ' + reason, {timeout: 10000});
-            });
+                if ('error' in reason) {
+                    figma.notify('Localization failed: ' + reason.error);
+                    if ('log' in reason) {
+                        figma.ui.postMessage({type: 'log', log: reason.log});
+                    }
+                } else {
+                    figma.notify(reason.toString());
+                }
+            })
+    } else if (message.type === 'focus-node') {
+        figma.viewport.zoom = 1000.0;
+        figma.viewport.scrollAndZoomIntoView([figma.getNodeById(message.id)]);
+        figma.viewport.zoom = 0.75 * figma.viewport.zoom;
     }
-
-    figma.closePlugin();
 };
