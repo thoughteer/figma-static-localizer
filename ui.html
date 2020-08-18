@@ -1,0 +1,96 @@
+<head>
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+
+        body {
+            font-family: Inter;
+            font-size: 11px;
+            margin: 0.5em;
+        }
+
+        .panel {
+            margin: 1em;
+        }
+
+        label {
+            font-weight: 600;
+        }
+
+        input, select, textarea, button {
+            font-family: inherit;
+        }
+
+        input[type=file], textarea {
+            margin-top: 0.5em;
+            width: 100%;
+        }
+
+        input[type=text] {
+            width: 5em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <form>
+        <div class="panel">
+            <label for="serializedDictionary">Dictionary (TSV)</label><br/>
+            <input type="file" id="dictionaryFile"/>
+            <textarea id="serializedDictionary" rows="3" wrap="soft"></textarea>
+        </div>
+        <div class="panel">
+            <label for="serializedExceptions">Exceptions (one regular expression per line)</label><br/>
+            <input type="file" id="exceptionsFile"/>
+            <textarea id="serializedExceptions" rows="3" wrap="soft"></textarea>
+        </div>
+        <div class="panel">
+            <input id="sourceLanguage"/>&nbsp;&rarr;&nbsp;<input id="targetLanguage"/>
+        </div>
+        <div class="panel">
+            <button id="translate" disabled>Translate</button>
+        </div>
+    </form>
+
+    <script>
+
+        var fields = null;
+
+        onmessage = (event) => {
+            const message = event.data.pluginMessage;
+
+            if (message.type === 'settings') {
+                fields = Object.keys(message.settings);
+                fields.forEach(field => {
+                    document.getElementById(field).value = message.settings[field];
+                });
+                document.getElementById('translate').disabled = false;
+            }
+        };
+
+        document.getElementById('dictionaryFile').onchange = e => loadFile(e, 'serializedDictionary');
+        document.getElementById('exceptionsFile').onchange = e => loadFile(e, 'serializedExceptions');
+
+        document.getElementById('translate').onclick = () => {
+            const settings = {};
+            fields.forEach(field => {
+                settings[field] = document.getElementById(field).value;
+            });
+            parent.postMessage({ pluginMessage: { type: 'translate-selection', settings } }, '*')
+        };
+
+        parent.postMessage({ pluginMessage: { type: 'load-settings' } }, '*');
+
+        function loadFile(e, holderId) {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById(holderId).value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+    </script>
+</body>

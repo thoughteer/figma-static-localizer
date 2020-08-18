@@ -1,0 +1,7 @@
+{
+  "name": "Static Localizer",
+  "id": "876934931929982678",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html"
+}
