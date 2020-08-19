@@ -7,23 +7,35 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
-const DEFAULTS = {
-    serializedDictionary: 'RU\tEN\nПривет!\tHi!',
-    serializedExceptions: 'Joom',
-    sourceLanguage: 'RU',
-    targetLanguage: 'EN',
-};
-function loadSettings() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const result = {};
-        const promises = Object.keys(DEFAULTS).map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({ field, value: value || DEFAULTS[field] })));
-        (yield Promise.all(promises)).forEach(({ field, value }) => {
-            result[field] = value;
+var SettingsManager;
+(function (SettingsManager) {
+    const DEFAULT = {
+        serializedDictionary: 'RU\tEN\nПривет!\tHello!',
+        serializedExceptions: 'Joom',
+        sourceLanguage: 'RU',
+        targetLanguage: 'EN',
+    };
+    const FIELDS = Object.keys(DEFAULT);
+    const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
+    function load() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const result = {};
+            const promises = FIELDS.map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({ field, value: value === undefined ? DEFAULT[field] : value })));
+            (yield Promise.all(promises)).forEach(({ field, value }) => {
+                result[field] = value;
+            });
+            return result;
         });
-        return result;
-    });
-}
+    }
+    SettingsManager.load = load;
+    function save(settings) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield Promise.all(FIELDS.map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
+        });
+    }
+    SettingsManager.save = save;
+})(SettingsManager || (SettingsManager = {}));
+;
 function translateSelection(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
@@ -44,7 +56,7 @@ function parseDictionary(serializedDictionary) {
         console.log('Dictionary:', { header, rows });
         rows.forEach((row, index) => {
             if (row.length != expectedColumnCount) {
-                throw { error: 'row #' + (index + 2) + ' of the dictionary has ' + row.length + ' (not ' + expectedColumnCount + ') columns' };
+                throw { error: 'row ' + (index + 2) + ' of the dictionary has ' + row.length + ' (not ' + expectedColumnCount + ') columns' };
             }
         });
         return { header, rows };
@@ -74,7 +86,14 @@ function getMapping(dictionary, sourceLanguage, targetLanguage) {
 }
 function parseExceptions(serializedExceptions) {
     return __awaiter(this, void 0, void 0, function* () {
-        return serializedExceptions.split('\n').filter(pattern => pattern !== '').map(pattern => new RegExp(pattern));
+        return serializedExceptions.split('\n').filter(pattern => pattern !== '').map(pattern => {
+            try {
+                return new RegExp(pattern);
+            }
+            catch (_) {
+                throw { error: 'invalid regular expression `' + pattern + '`' };
+            }
+        });
     });
 }
 function replaceAllTexts(mapping, exceptions) {
@@ -128,12 +147,12 @@ function computeReplacement(node, mapping, exceptions) {
             node,
             translation: mapping[content],
             baseStyle: null,
-            modifiers: [],
+            sections: [],
         };
         for (let baseStyleCandidate of styles) {
             log.push('Base style candidate: ' + baseStyleCandidate.humanId);
             let ok = true;
-            result.modifiers.length = 0;
+            result.sections.length = 0;
             for (let { from, to, style } of sections) {
                 if (style.id === baseStyleCandidate.id) {
                     log.push('Section `' + node.characters.slice(from, to) + '` has the base style: ignored');
@@ -162,7 +181,7 @@ function computeReplacement(node, mapping, exceptions) {
                     break;
                 }
                 log.push('Section translated');
-                result.modifiers.push({ from: index, to: index + sectionTranslation.length, style });
+                result.sections.push({ from: index, to: index + sectionTranslation.length, style });
             }
             if (ok) {
                 result.baseStyle = baseStyleCandidate;
@@ -176,12 +195,12 @@ function computeReplacement(node, mapping, exceptions) {
         return result;
     });
 }
-function normalizeContent(string) {
-    return string.replace(/[\u000A\u2028\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
+function normalizeContent(content) {
+    return content.replace(/[\u000A\u2028\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
 }
-function keepAsIs(string, exceptions) {
+function keepAsIs(content, exceptions) {
     for (let regex of exceptions) {
-        if (string.match(regex)) {
+        if (content.match(regex)) {
             return true;
         }
     }
@@ -204,20 +223,20 @@ function sliceIntoSections(node, from = 0, to = node.characters.length) {
     }
     return leftSections.concat(rightSections);
 }
-function prepareLog(failedReplacements) {
-    return failedReplacements.map(({ node, error, log }) => ('<a href="javascript:focusNode(\'' + node.id + '\');">' + node.id + '</a><br/>' +
+function prepareLog(failures) {
+    return failures.map(({ node, error, log }) => ('<a href="javascript:focusNode(\'' + node.id + '\');">' + node.id + '</a><br/>' +
         error + '<br/>' +
         '<pre>' + log.join('\n') + '</pre>')).join('<br/>');
 }
 function replaceText(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
-        const { node, translation, baseStyle, modifiers } = replacement;
+        const { node, translation, baseStyle, sections } = replacement;
         yield figma.loadFontAsync(baseStyle.fontName);
-        yield Promise.all(modifiers.map(({ style }) => figma.loadFontAsync(style.fontName)));
+        yield Promise.all(sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
         node.characters = translation;
-        if (modifiers.length > 0) {
+        if (sections.length > 0) {
             setSectionStyle(node, 0, translation.length, baseStyle);
-            for (let { from, to, style } of modifiers) {
+            for (let { from, to, style } of sections) {
                 setSectionStyle(node, from, to, style);
             }
         }
@@ -278,20 +297,15 @@ function setSectionStyle(node, from, to, style) {
     node.setRangeTextDecoration(from, to, style.textDecoration);
     node.setRangeTextStyleId(from, to, style.textStyleId);
 }
-figma.showUI(__html__, { width: 400, height: 400 });
+figma.showUI(__html__, { width: 500, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     if (message.type === 'load-settings') {
-        const settings = yield loadSettings();
+        const settings = yield SettingsManager.load();
         console.log('Loaded settings:', settings);
-        const response = {
-            type: 'settings',
-            settings,
-        };
-        figma.ui.postMessage(response);
+        figma.ui.postMessage({ type: 'settings', settings });
     }
     else if (message.type === 'translate-selection') {
-        const promises = Object.keys(message.settings).map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, message.settings[field]));
-        yield Promise.all(promises);
+        yield SettingsManager.save(message.settings);
         yield translateSelection(message.settings)
             .then(() => {
             figma.notify('Done');
