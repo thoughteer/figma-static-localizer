@@ -99,13 +99,13 @@ function parseExceptions(serializedExceptions) {
 function replaceAllTexts(mapping, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        const replacements = yield mapWithRateLimit(textNodes, 100, node => computeReplacement(node, mapping, exceptions));
+        const replacements = yield mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions));
         const failures = replacements.filter(r => r !== null && 'error' in r);
         if (failures.length > 0) {
             console.log('Failures:', failures);
             throw { error: 'found some untranslatable nodes', failures };
         }
-        yield mapWithRateLimit(replacements.filter(r => r !== null), 20, replaceText);
+        yield mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
     });
 }
 function findSelectedTextNodes() {

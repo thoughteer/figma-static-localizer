@@ -130,14 +130,14 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
 async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
     const textNodes = await findSelectedTextNodes();
 
-    const replacements = await mapWithRateLimit(textNodes, 100, node => computeReplacement(node, mapping, exceptions));
+    const replacements = await mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions));
     const failures = replacements.filter(r => r !== null && 'error' in r) as ReplacementFailure[];
     if (failures.length > 0) {
         console.log('Failures:', failures);
         throw {error: 'found some untranslatable nodes', failures};
     }
 
-    await mapWithRateLimit(replacements.filter(r => r !== null), 20, replaceText);
+    await mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
 }
 
 async function findSelectedTextNodes(): Promise<TextNode[]> {
