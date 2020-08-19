@@ -40,9 +40,8 @@ type Replacement = null | {
 };
 
 type ReplacementFailure = {
-    node: TextNode;
+    nodeId: string;
     error: string;
-    log: string[];
 };
 
 type ReplacementAttempt = Replacement | ReplacementFailure;
@@ -81,7 +80,7 @@ async function translateSelection(settings: Settings): Promise<void> {
 }
 
 async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
-    const table = escape(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => unescape(field.trim())));
+    const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field.trim())));
     if (table.length < 2) {
         throw {error: 'empty dictionary'};
     }
@@ -135,7 +134,7 @@ async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<
     const failures = replacements.filter(r => r !== null && 'error' in r) as ReplacementFailure[];
     if (failures.length > 0) {
         console.log('Failures:', failures);
-        throw {error: 'found some untranslatable nodes', log: prepareLog(failures)};
+        throw {error: 'found some untranslatable nodes', failures};
     }
 
     await Promise.all(replacements.filter(r => r !== null).map(replaceText));
@@ -160,15 +159,15 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     }
 
     if (!(content in mapping)) {
-        return {node, error: 'no translation', log: [content]};
+        return {nodeId: node.id, error: 'No translation for `' + content + '`.'};
     }
 
-    const log = [];
-
-    log.push('Computing replacement for `' + content + '`');
-
     const sections = sliceIntoSections(node);
-    log.push('Sections: ' + sections.map(({from, to}) => from + '-' + to).join(', '));
+
+    const errorLog = [
+        'Cannot determine a base style. ',
+        'Split `' + content + '` into ' + sections.length + ' sections.',
+    ];
 
     const styles = [];
     const styleIds = new Set<string>();
@@ -187,36 +186,33 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     };
 
     for (let baseStyleCandidate of styles) {
-        log.push('Base style candidate: ' + baseStyleCandidate.humanId);
+        errorLog.push(' Style ' + baseStyleCandidate.humanId + ' is not base: ');
         let ok = true;
         result.sections.length = 0;
         for (let {from, to, style} of sections) {
             if (style.id === baseStyleCandidate.id) {
-                log.push('Section `' + node.characters.slice(from, to) + '` has the base style: ignored');
                 continue;
             }
             const sectionContent = normalizeContent(node.characters.slice(from, to));
-            log.push('Section `' + sectionContent + '` has a non-base style: needs translation');
             let sectionTranslation = sectionContent;
             if (sectionContent in mapping) {
                 sectionTranslation = mapping[sectionContent];
             } else if (!keepAsIs(sectionContent, exceptions)) {
-                log.push('No translation found: skipping the candidate');
+                errorLog.push('no translation for `' + sectionContent + '`.');
                 ok = false;
                 break;
             }
             const index = result.translation.indexOf(sectionTranslation);
             if (index == -1) {
-                log.push('Cannot find `' + sectionTranslation + '` within `' + result.translation + '`: skipping the candidate');
+                errorLog.push('`' + sectionTranslation + '` not found within `' + result.translation + '`.');
                 ok = false;
                 break;
             }
             if (result.translation.indexOf(sectionTranslation, index + 1) != -1) {
-                log.push('Found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`: skipping the candidate');
+                errorLog.push('found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`.');
                 ok = false;
                 break;
             }
-            log.push('Section translated');
             result.sections.push({from: index, to: index + sectionTranslation.length, style});
         }
         if (ok) {
@@ -225,7 +221,7 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
         }
     }
     if (result.baseStyle === null) {
-        return {node, error: 'cannot determine a base style', log};
+        return {nodeId: node.id, error: errorLog.join('')};
     }
 
     console.log('Replacement:', result);
@@ -262,14 +258,6 @@ function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.c
         leftSections.pop();
     }
     return leftSections.concat(rightSections);
-}
-
-function prepareLog(failures: ReplacementFailure[]): string {
-    return failures.map(({node, error, log}) => (
-        '<a href="javascript:focusNode(\'' + node.id + '\');">' + node.id + '</a><br/>' +
-        error + '<br/>' +
-        '<pre>' + log.join('\n') + '</pre>'
-    )).join('<br/>');
 }
 
 async function replaceText(replacement: Replacement): Promise<void> {
@@ -363,8 +351,8 @@ figma.ui.onmessage = async message => {
             .catch(reason => {
                 if ('error' in reason) {
                     figma.notify('Localization failed: ' + reason.error);
-                    if ('log' in reason) {
-                        figma.ui.postMessage({type: 'log', log: reason.log});
+                    if ('failures' in reason) {
+                        figma.ui.postMessage({type: 'failures', failures: reason.failures});
                     }
                 } else {
                     figma.notify(reason.toString());

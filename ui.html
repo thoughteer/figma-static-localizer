@@ -48,7 +48,7 @@
     <div class="panel">
         <button id="translate" disabled>Translate</button>
     </div>
-    <div class="panel" id="log"></div>
+    <div class="panel" id="failures"></div>
 
     <script>
 
@@ -63,8 +63,11 @@
                     document.getElementById(field).value = message.settings[field];
                 });
                 document.getElementById('translate').disabled = false;
-            } else if (message.type === 'log') {
-                document.getElementById('log').innerHTML = message.log;
+            } else if (message.type === 'failures') {
+                document.getElementById('failures').innerHTML = message.failures.map(({nodeId, error}) => (
+                    '<a href="javascript:focusNode(\'' + nodeId + '\');">' + nodeId + '</a><br/>' +
+                    '<span>' + error + '</span>'
+                )).join('<br/>');
             }
         };
 

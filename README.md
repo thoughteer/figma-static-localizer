@@ -1,12 +1,12 @@
 # Static Localizer
 
-A simple plugin that allows you to translate texts using a static dictionary.
+A simple Figma plugin that allows you to translate texts using a static dictionary.
 
 It gracefully handles mixed text formatting.
 
 ## Installation
 
-To install the plugin locally, download this repo, then click
+To install the plugin locally, download this repo, then go to
 
     Plugins > Development > Create new plugin
 
@@ -52,8 +52,7 @@ For instance,
 If localization fails, you will see the list of untranslatable nodes right in the UI.
 For each untranslatable node we provide
 - a hyperlink to it
-- a short error description
-- a translation log
+- a translation error description
 
 ## Development
 
