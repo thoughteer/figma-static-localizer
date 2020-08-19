@@ -130,14 +130,14 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
 async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
     const textNodes = await findSelectedTextNodes();
 
-    const replacements = await Promise.all(textNodes.map(node => computeReplacement(node, mapping, exceptions)));
+    const replacements = await mapWithRateLimit(textNodes, 100, node => computeReplacement(node, mapping, exceptions));
     const failures = replacements.filter(r => r !== null && 'error' in r) as ReplacementFailure[];
     if (failures.length > 0) {
         console.log('Failures:', failures);
         throw {error: 'found some untranslatable nodes', failures};
     }
 
-    await Promise.all(replacements.filter(r => r !== null).map(replaceText));
+    await mapWithRateLimit(replacements.filter(r => r !== null), 20, replaceText);
 }
 
 async function findSelectedTextNodes(): Promise<TextNode[]> {
@@ -333,6 +333,40 @@ function setSectionStyle(node: TextNode, from: number, to: number, style: Style)
     node.setRangeTextStyleId(from, to, style.textStyleId);
 }
 
+function mapWithRateLimit<X, Y>(array: X[], rateLimit: number, mapper: (x: X) => Promise<Y>): Promise<Y[]> {
+    return new Promise((resolve, reject) => {
+        const result = new Array<Y>(array.length);
+        let index = 0;
+        let done = 0;
+        var startTime = Date.now();
+
+        const computeDelay = () => startTime + index * 1000.0 / rateLimit - Date.now();
+
+        const schedule = () => {
+            while (index < array.length && computeDelay() < 0) {
+                (i => {
+                    mapper(array[i]).then(y => {
+                        result[i] = y;
+                        ++done;
+                        schedule();
+                    }, reject);
+                })(index);
+                ++index;
+            }
+            if (done === array.length) {
+                resolve(result);
+            } else {
+                const delay = computeDelay();
+                if (delay >= 0) {
+                    setTimeout(schedule, delay);
+                }
+            }
+        }
+
+        schedule();
+    });
+}
+
 
 figma.showUI(__html__, {width: 500, height: 400});
 
@@ -364,3 +398,4 @@ figma.ui.onmessage = async message => {
         figma.viewport.zoom = 0.75 * figma.viewport.zoom;
     }
 };
+

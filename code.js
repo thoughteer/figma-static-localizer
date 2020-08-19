@@ -99,13 +99,13 @@ function parseExceptions(serializedExceptions) {
 function replaceAllTexts(mapping, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        const replacements = yield Promise.all(textNodes.map(node => computeReplacement(node, mapping, exceptions)));
+        const replacements = yield mapWithRateLimit(textNodes, 100, node => computeReplacement(node, mapping, exceptions));
         const failures = replacements.filter(r => r !== null && 'error' in r);
         if (failures.length > 0) {
             console.log('Failures:', failures);
             throw { error: 'found some untranslatable nodes', failures };
         }
-        yield Promise.all(replacements.filter(r => r !== null).map(replaceText));
+        yield mapWithRateLimit(replacements.filter(r => r !== null), 20, replaceText);
     });
 }
 function findSelectedTextNodes() {
@@ -289,6 +289,37 @@ function setSectionStyle(node, from, to, style) {
     node.setRangeLineHeight(from, to, style.lineHeight);
     node.setRangeTextDecoration(from, to, style.textDecoration);
     node.setRangeTextStyleId(from, to, style.textStyleId);
+}
+function mapWithRateLimit(array, rateLimit, mapper) {
+    return new Promise((resolve, reject) => {
+        const result = new Array(array.length);
+        let index = 0;
+        let done = 0;
+        var startTime = Date.now();
+        const computeDelay = () => startTime + index * 1000.0 / rateLimit - Date.now();
+        const schedule = () => {
+            while (index < array.length && computeDelay() < 0) {
+                (i => {
+                    mapper(array[i]).then(y => {
+                        result[i] = y;
+                        ++done;
+                        schedule();
+                    }, reject);
+                })(index);
+                ++index;
+            }
+            if (done === array.length) {
+                resolve(result);
+            }
+            else {
+                const delay = computeDelay();
+                if (delay >= 0) {
+                    setTimeout(schedule, delay);
+                }
+            }
+        };
+        schedule();
+    });
 }
 figma.showUI(__html__, { width: 500, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
