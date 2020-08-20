@@ -28,7 +28,7 @@ The plugin will always remember the last used settings.
 
 ### Dictionary
 
-Should be in a [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) format.
+Should be in the [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) format.
 The first row is a header containing language codes.
 Each of the following rows contains translations of some phrase into corresponding languages.
 
@@ -67,6 +67,8 @@ If localization fails, you will see the list of untranslatable nodes right in th
 For each untranslatable node we provide
 - a hyperlink to it
 - a translation error description
+
+The plugin will also suggest a list of phrases that should be translated in order to complete the localization.
 
 ## Development
 
