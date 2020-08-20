@@ -11,7 +11,7 @@ var SettingsManager;
 (function (SettingsManager) {
     const DEFAULT = {
         serializedDictionary: 'RU\tEN\nПривет!\tHello!',
-        serializedExceptions: 'Joom',
+        serializedExceptions: '',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
     };
@@ -129,12 +129,12 @@ function computeReplacement(node, mapping, exceptions) {
             return null;
         }
         if (!(content in mapping)) {
-            return { nodeId: node.id, error: 'No translation for `' + content + '`.' };
+            return { nodeId: node.id, error: 'No translation for `' + content + '`', suggestions: [content] };
         }
         const sections = sliceIntoSections(node);
         const errorLog = [
-            'Cannot determine a base style. ',
-            'Split `' + content + '` into ' + sections.length + ' sections.',
+            'Cannot determine a base style for `' + content + '`',
+            'Split into ' + sections.length + ' sections',
         ];
         const styles = [];
         const styleIds = new Set();
@@ -151,7 +151,7 @@ function computeReplacement(node, mapping, exceptions) {
             sections: [],
         };
         for (let baseStyleCandidate of styles) {
-            errorLog.push(' Style ' + baseStyleCandidate.humanId + ' is not base: ');
+            const prelude = 'Style ' + baseStyleCandidate.humanId + ' is not base: ';
             let ok = true;
             result.sections.length = 0;
             for (let { from, to, style } of sections) {
@@ -164,18 +164,18 @@ function computeReplacement(node, mapping, exceptions) {
                     sectionTranslation = mapping[sectionContent];
                 }
                 else if (!keepAsIs(sectionContent, exceptions)) {
-                    errorLog.push('no translation for `' + sectionContent + '`.');
+                    errorLog.push(prelude + 'no translation for `' + sectionContent + '`');
                     ok = false;
                     break;
                 }
                 const index = result.translation.indexOf(sectionTranslation);
                 if (index == -1) {
-                    errorLog.push('`' + sectionTranslation + '` not found within `' + result.translation + '`.');
+                    errorLog.push(prelude + '`' + sectionTranslation + '` not found within `' + result.translation + '`');
                     ok = false;
                     break;
                 }
                 if (result.translation.indexOf(sectionTranslation, index + 1) != -1) {
-                    errorLog.push('found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`.');
+                    errorLog.push(prelude + 'found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`');
                     ok = false;
                     break;
                 }
@@ -187,7 +187,31 @@ function computeReplacement(node, mapping, exceptions) {
             }
         }
         if (result.baseStyle === null) {
-            return { nodeId: node.id, error: errorLog.join('') };
+            const n = node.characters.length;
+            const styleScores = new Map();
+            for (let { from, to, style } of sections) {
+                styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
+            }
+            let suggestedBaseStyleId = null;
+            let suggestedBaseStyleScore = 0;
+            for (let style of styles) {
+                const styleScore = styleScores.get(style.id);
+                if (styleScore > suggestedBaseStyleScore) {
+                    suggestedBaseStyleId = style.id;
+                    suggestedBaseStyleScore = styleScore;
+                }
+            }
+            const suggestions = [];
+            for (let { from, to, style } of sections) {
+                if (style.id === suggestedBaseStyleId) {
+                    continue;
+                }
+                const sectionContent = normalizeContent(node.characters.slice(from, to));
+                if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
+                    suggestions.push(sectionContent);
+                }
+            }
+            return { nodeId: node.id, error: errorLog.join('. '), suggestions };
         }
         console.log('Replacement:', result);
         return result;
@@ -321,12 +345,13 @@ function mapWithRateLimit(array, rateLimit, mapper) {
         schedule();
     });
 }
-figma.showUI(__html__, { width: 500, height: 400 });
+figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     if (message.type === 'load-settings') {
         const settings = yield SettingsManager.load();
         console.log('Loaded settings:', settings);
         figma.ui.postMessage({ type: 'settings', settings });
+        figma.ui.postMessage({ type: 'ready' });
     }
     else if (message.type === 'translate-selection') {
         yield SettingsManager.save(message.settings);
@@ -345,6 +370,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             else {
                 figma.notify(reason.toString());
             }
+            figma.ui.postMessage({ type: 'ready' });
         });
     }
     else if (message.type === 'focus-node') {

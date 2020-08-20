@@ -23,6 +23,9 @@ in Figma Desktop, and select the downloaded `manifest.json` file.
 
 The plugin will always remember the last used settings.
 
+![](screenshots/before.webp)
+![](screenshots/after.webp)
+
 ### Dictionary
 
 Should be in a [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) format.
@@ -46,6 +49,17 @@ For instance,
 ^$
 ^-?[0-9. ]+%?$
 ```
+
+Here are some commonly used patterns:
+
+| Pattern | Description |
+| - | - |
+| `^$` | an empty text |
+| `^\s*$` | whitespaces |
+| `^[+-]?[0-9.,]+%?` | decimal numbers and percentages |
+| `^Joom$` | some brand name |
+
+Also, check out this [tutorial on regular expressions](https://medium.com/factory-mind/regex-tutorial-a-simple-cheatsheet-by-examples-649dc1c3f285).
 
 ## Troubleshooting
 

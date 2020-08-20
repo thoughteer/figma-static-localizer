@@ -42,6 +42,7 @@ type Replacement = null | {
 type ReplacementFailure = {
     nodeId: string;
     error: string;
+    suggestions: string[];
 };
 
 type ReplacementAttempt = Replacement | ReplacementFailure;
@@ -50,7 +51,7 @@ type ReplacementAttempt = Replacement | ReplacementFailure;
 namespace SettingsManager {
     const DEFAULT: Settings = {
         serializedDictionary: 'RU\tEN\nПривет!\tHello!',
-        serializedExceptions: 'Joom',
+        serializedExceptions: '',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
     };
@@ -159,14 +160,14 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     }
 
     if (!(content in mapping)) {
-        return {nodeId: node.id, error: 'No translation for `' + content + '`.'};
+        return {nodeId: node.id, error: 'No translation for `' + content + '`', suggestions: [content]};
     }
 
     const sections = sliceIntoSections(node);
 
     const errorLog = [
-        'Cannot determine a base style. ',
-        'Split `' + content + '` into ' + sections.length + ' sections.',
+        'Cannot determine a base style for `' + content + '`',
+        'Split into ' + sections.length + ' sections',
     ];
 
     const styles = [];
@@ -186,7 +187,7 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     };
 
     for (let baseStyleCandidate of styles) {
-        errorLog.push(' Style ' + baseStyleCandidate.humanId + ' is not base: ');
+        const prelude = 'Style ' + baseStyleCandidate.humanId + ' is not base: ';
         let ok = true;
         result.sections.length = 0;
         for (let {from, to, style} of sections) {
@@ -198,18 +199,18 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
             if (sectionContent in mapping) {
                 sectionTranslation = mapping[sectionContent];
             } else if (!keepAsIs(sectionContent, exceptions)) {
-                errorLog.push('no translation for `' + sectionContent + '`.');
+                errorLog.push(prelude + 'no translation for `' + sectionContent + '`');
                 ok = false;
                 break;
             }
             const index = result.translation.indexOf(sectionTranslation);
             if (index == -1) {
-                errorLog.push('`' + sectionTranslation + '` not found within `' + result.translation + '`.');
+                errorLog.push(prelude + '`' + sectionTranslation + '` not found within `' + result.translation + '`');
                 ok = false;
                 break;
             }
             if (result.translation.indexOf(sectionTranslation, index + 1) != -1) {
-                errorLog.push('found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`.');
+                errorLog.push(prelude + 'found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`');
                 ok = false;
                 break;
             }
@@ -220,8 +221,35 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
             break;
         }
     }
+
     if (result.baseStyle === null) {
-        return {nodeId: node.id, error: errorLog.join('')};
+        const n = node.characters.length;
+        const styleScores = new Map<string, number>();
+        for (let {from, to, style} of sections) {
+            styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
+        }
+        let suggestedBaseStyleId: string = null;
+        let suggestedBaseStyleScore = 0;
+        for (let style of styles) {
+            const styleScore = styleScores.get(style.id);
+            if (styleScore > suggestedBaseStyleScore) {
+                suggestedBaseStyleId = style.id;
+                suggestedBaseStyleScore = styleScore;
+            }
+        }
+
+        const suggestions: string[] = [];
+        for (let {from, to, style} of sections) {
+            if (style.id === suggestedBaseStyleId) {
+                continue;
+            }
+            const sectionContent = normalizeContent(node.characters.slice(from, to));
+            if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
+                suggestions.push(sectionContent);
+            }
+        }
+
+        return {nodeId: node.id, error: errorLog.join('. '), suggestions};
     }
 
     console.log('Replacement:', result);
@@ -368,13 +396,14 @@ function mapWithRateLimit<X, Y>(array: X[], rateLimit: number, mapper: (x: X) =>
 }
 
 
-figma.showUI(__html__, {width: 500, height: 400});
+figma.showUI(__html__, {width: 400, height: 400});
 
 figma.ui.onmessage = async message => {
     if (message.type === 'load-settings') {
         const settings = await SettingsManager.load();
         console.log('Loaded settings:', settings);
         figma.ui.postMessage({type: 'settings', settings});
+        figma.ui.postMessage({type: 'ready'});
     } else if (message.type === 'translate-selection') {
         await SettingsManager.save(message.settings);
         await translateSelection(message.settings)
@@ -391,7 +420,8 @@ figma.ui.onmessage = async message => {
                 } else {
                     figma.notify(reason.toString());
                 }
-            })
+                figma.ui.postMessage({type: 'ready'});
+            });
     } else if (message.type === 'focus-node') {
         figma.viewport.zoom = 1000.0;
         figma.viewport.scrollAndZoomIntoView([figma.getNodeById(message.id)]);
