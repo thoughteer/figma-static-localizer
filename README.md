@@ -20,6 +20,8 @@ The plugin includes several modules:
 - [Translation](#Translation)
 - [Currency conversion](#Currency-conversion)
 
+Note, that the plugin will always remember the last used settings.
+
 ### Translation
 
 - Select components to translate
@@ -28,8 +30,6 @@ The plugin includes several modules:
 - Specify [exceptions](#Exceptions) explicitly or load them from a file
 - Specify source and target languages
 - Hit `Translate`
-
-The plugin will always remember the last used settings.
 
 ![](screenshots/translation-before.webp)
 ![](screenshots/translation-after.webp)
