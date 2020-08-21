@@ -374,9 +374,9 @@ a {
             const link = document.createElement('a');
             link.href = 'javascript:focusNode("' + nodeId + '");';
             link.innerText = nodeId;
-            result.appendChild(link);
             const comment = document.createElement('span');
             comment.innerText = error;
+            comment.appendChild(link);
             result.appendChild(comment);
             return result;
         }

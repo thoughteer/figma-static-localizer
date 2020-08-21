@@ -82,8 +82,8 @@ async function translateSelection(settings: Settings): Promise<void> {
 
 async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
     const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field.trim())));
-    if (table.length < 2) {
-        throw {error: 'empty dictionary'};
+    if (table.length === 0) {
+        throw {error: 'no header in the dictionary'};
     }
     const header = table[0];
     const expectedColumnCount = header.length;

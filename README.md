@@ -4,6 +4,8 @@ A simple Figma plugin that allows you to translate texts using a static dictiona
 
 It gracefully handles mixed text formatting.
 
+We do not support RTL languages yet.
+
 ## Installation
 
 To install the plugin locally, download this repo, then go to
