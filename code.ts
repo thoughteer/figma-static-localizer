@@ -159,11 +159,13 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
         return null;
     }
 
-    if (!(content in mapping)) {
-        return {nodeId: node.id, error: 'No translation for `' + content + '`', suggestions: [content]};
-    }
-
     const sections = sliceIntoSections(node);
+
+    const suggestions = suggest(node, content, sections, mapping, exceptions);
+
+    if (!(content in mapping)) {
+        return {nodeId: node.id, error: 'No translation for `' + content + '`', suggestions};
+    }
 
     const errorLog = [
         'Cannot determine a base style for `' + content + '`',
@@ -223,32 +225,6 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     }
 
     if (result.baseStyle === null) {
-        const n = node.characters.length;
-        const styleScores = new Map<string, number>();
-        for (let {from, to, style} of sections) {
-            styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
-        }
-        let suggestedBaseStyleId: string = null;
-        let suggestedBaseStyleScore = 0;
-        for (let style of styles) {
-            const styleScore = styleScores.get(style.id);
-            if (styleScore > suggestedBaseStyleScore) {
-                suggestedBaseStyleId = style.id;
-                suggestedBaseStyleScore = styleScore;
-            }
-        }
-
-        const suggestions: string[] = [];
-        for (let {from, to, style} of sections) {
-            if (style.id === suggestedBaseStyleId) {
-                continue;
-            }
-            const sectionContent = normalizeContent(node.characters.slice(from, to));
-            if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
-                suggestions.push(sectionContent);
-            }
-        }
-
         return {nodeId: node.id, error: errorLog.join('. '), suggestions};
     }
 
@@ -286,6 +262,37 @@ function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.c
         leftSections.pop();
     }
     return leftSections.concat(rightSections);
+}
+
+function suggest(node: TextNode, content: string, sections: Section[], mapping: Mapping, exceptions: RegExp[]): string[] {
+    const n = content.length;
+    const styleScores = new Map<string, number>();
+    for (let {from, to, style} of sections) {
+        styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
+    }
+    let suggestedBaseStyleId: string = null;
+    let suggestedBaseStyleScore = 0;
+    for (let [styleId, styleScore] of styleScores) {
+        if (styleScore > suggestedBaseStyleScore) {
+            suggestedBaseStyleId = styleId;
+            suggestedBaseStyleScore = styleScore;
+        }
+    }
+
+    const result: string[] = [];
+    if (!(content in mapping)) {
+        result.push(content);
+    }
+    for (let {from, to, style} of sections) {
+        if (style.id === suggestedBaseStyleId) {
+            continue;
+        }
+        const sectionContent = normalizeContent(node.characters.slice(from, to));
+        if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
+            result.push(sectionContent);
+        }
+    }
+    return result;
 }
 
 async function replaceText(replacement: Replacement): Promise<void> {

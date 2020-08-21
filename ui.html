@@ -363,7 +363,7 @@ a {
         function renderFailures(failures) {
             const result = document.createElement('div');
             failures.map(renderError).forEach(element => result.appendChild(element));
-            result.appendChild(renderSuggestions(failures));
+            result.appendChild(renderSuggestions(extractSuggestions(failures)));
             return result;
         }
 
@@ -381,10 +381,23 @@ a {
             return result;
         }
 
-        function renderSuggestions(failures) {
+        function extractSuggestions(failures) {
+            const result = [];
+            const unique = new Set();
+            for (let failure of failures) {
+                for (let suggestion of failure.suggestions) {
+                    if (!unique.has(suggestion)) {
+                        result.push(suggestion);
+                        unique.add(suggestion);
+                    }
+                }
+            }
+            return result;
+        }
+
+        function renderSuggestions(suggestions) {
             const result = document.createElement('div');
-            const data = failures.map(({suggestions}) => suggestions.join('\n')).join('\n');
-            if (data !== '') {
+            if (suggestions.length > 0) {
                 const labelRow = document.createElement('div');
                 labelRow.className = 'row';
                 labelRow.innerHTML = '<div class="label">We suggest to translate the following phrases</div>';
@@ -395,7 +408,7 @@ a {
                 dataArea.className = 'textarea';
                 dataArea.readOnly = true;
                 dataArea.wrap = 'off';
-                dataArea.value = data;
+                dataArea.value = suggestions.join('\n');
                 dataRow.appendChild(dataArea);
                 result.appendChild(dataRow);
             }
