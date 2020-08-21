@@ -61,6 +61,28 @@ html, body {
     margin-right: 8px;
 }
 
+.tab {
+    -ms-flex-align: center;
+    -webkit-box-align: center;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 0, 0, .3);
+    color: rgba(0, 0, 0, .3);
+    cursor: default;
+    display: -ms-flexbox;
+    display: -webkit-box;
+    display: flex;
+    font-weight: 500;
+    height: 32px;
+    justify-content: center;
+    padding: 8px 0;
+    width: 100%;
+}
+
+.tab--active {
+    border-bottom: 1px solid rgba(0, 0, 0, .8);
+    color: rgba(0, 0, 0, .8);
+}
+
 .label {
     -ms-flex-align: center;
     -webkit-box-align: center;
@@ -272,7 +294,12 @@ a {
 </style>
 
 <body>
-    <div class="container">
+    <div class="row">
+        <div class="tab tab--active" with="translation">Translation</div>
+        <div class="tab" with="conversion">Conversion</div>
+    </div>
+
+    <div class="container" id="translation">
         <div class="block">
             <div class="row">
                 <div class="label" for="serializedDictionary">Dictionary</div>
@@ -313,6 +340,30 @@ a {
         <div id="failures"></div>
     </div>
 
+    <div class="container" id="conversion">
+        <div class="block">
+            <div class="row">
+                <div class="label" for="serializedCurrencies">Currencies</div>
+                <label class="file" for="currenciesFile" style="margin-left: auto;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="17" viewBox="0 0 20 17"><path d="M10 0l-5.2 4.9h3.3v5.1h3.8v-5.1h3.3l-5.2-4.9zm9.3 11.5l-3.2-2.1h-2l3.4 2.6h-3.5c-.1 0-.2.1-.2.1l-.8 2.3h-6l-.8-2.2c-.1-.1-.1-.2-.2-.2h-3.6l3.4-2.6h-2l-3.2 2.1c-.4.3-.7 1-.6 1.5l.6 3.1c.1.5.7.9 1.2.9h16.3c.6 0 1.1-.4 1.3-.9l.6-3.1c.1-.5-.2-1.2-.7-1.5z"></path></svg>
+                </label>
+                <input type="file" id="currenciesFile"/>
+            </div>
+            <div class="row">
+                <textarea class="textarea" id="serializedCurrencies" wrap="off"></textarea>
+            </div>
+        </div>
+        <div class="block" style="margin-top: 16px;">
+            <div class="row">
+                <input class="input" id="sourceCurrencyCode"/>
+                <div class="label">&nbsp;&rarr;&nbsp;</div>
+                <input class="input" id="targetCurrencyCode"/>
+                <div class="label">&nbsp;</div>
+                <button class="button button--primary" id="convertCurrency" disabled>Convert currency</button>
+            </div>
+        </div>
+    </div>
+
     <script>
 
         var fields = null;
@@ -331,6 +382,7 @@ a {
                 holder.appendChild(renderFailures(message.failures));
             } else if (message.type === 'ready') {
                 document.getElementById('translate').disabled = false;
+                document.getElementById('convertCurrency').disabled = false;
             }
         };
 
@@ -339,14 +391,25 @@ a {
 
         document.getElementById('translate').onclick = () => {
             document.getElementById('translate').disabled = true;
-            const settings = {};
-            fields.forEach(field => {
-                settings[field] = document.getElementById(field).value;
-            });
-            parent.postMessage({ pluginMessage: { type: 'translate-selection', settings } }, '*')
+            const settings = getSettings();
+            parent.postMessage({ pluginMessage: { type: 'translate', settings } }, '*')
+        };
+
+        document.getElementById('convertCurrency').onclick = () => {
+            document.getElementById('convertCurrency').disabled = true;
+            const settings = getSettings();
+            parent.postMessage({ pluginMessage: { type: 'convert-currency', settings } }, '*')
         };
 
         parent.postMessage({ pluginMessage: { type: 'load-settings' } }, '*');
+
+        function getSettings() {
+            const result = {};
+            fields.forEach(field => {
+                result[field] = document.getElementById(field).value;
+            });
+            return result;
+        }
 
         function loadFile(e, holderId) {
             const file = e.target.files[0];
@@ -418,6 +481,20 @@ a {
         function focusNode(id) {
             parent.postMessage({ pluginMessage: { type: 'focus-node', id } }, '*');
         }
+
+        [].forEach.call(document.getElementsByClassName('tab'), tab => {
+            if (tab.className === 'tab') {
+                document.getElementById(tab.getAttribute('with')).style.display = 'none';
+            }
+            tab.onclick = () => {
+                [].forEach.call(document.getElementsByClassName('tab'), tabToHide => {
+                    tabToHide.className = 'tab';
+                    document.getElementById(tabToHide.getAttribute('with')).style.display = 'none';
+                });
+                tab.className = 'tab tab--active';
+                document.getElementById(tab.getAttribute('with')).style.display = 'flex';
+            };
+        });
 
     </script>
 </body>

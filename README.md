@@ -16,19 +16,25 @@ in Figma Desktop, and select the downloaded `manifest.json` file.
 
 ## Usage
 
-- Select components to localize
+The plugin includes several modules:
+- [Translation](#Translation)
+- [Currency conversion](#Currency-conversion)
+
+### Translation
+
+- Select components to translate
 - Invoke this plugin
 - Specify a [dictionary](#Dictionary) explicitly or load it from a file
 - Specify [exceptions](#Exceptions) explicitly or load them from a file
-- Specify source and target language codes
+- Specify source and target languages
 - Hit `Translate`
 
 The plugin will always remember the last used settings.
 
-![](screenshots/before.webp)
-![](screenshots/after.webp)
+![](screenshots/translation-before.webp)
+![](screenshots/translation-after.webp)
 
-### Dictionary
+#### Dictionary
 
 Should be in the [TSV](https://en.wikipedia.org/wiki/Tab-separated_values) format.
 The first row is a header containing language codes.
@@ -41,7 +47,7 @@ RU	EN	DE
 день	day	Tag
 ```
 
-### Exceptions
+#### Exceptions
 
 Define patterns to ignore during translation.
 There should be one regular expression per line.
@@ -63,14 +69,56 @@ Here are some commonly used patterns:
 
 Also, check out this [tutorial on regular expressions](https://medium.com/factory-mind/regex-tutorial-a-simple-cheatsheet-by-examples-649dc1c3f285).
 
-## Troubleshooting
+#### Troubleshooting
 
-If localization fails, you will see the list of untranslatable nodes right in the UI.
+If translation fails, you will see the list of untranslatable nodes right in the UI.
 For each untranslatable node we provide
 - a hyperlink to it
 - a translation error description
 
-The plugin will also suggest a list of phrases that should be translated in order to complete the localization.
+The plugin will also suggest a list of phrases that should be translated in order to complete the translation.
+
+### Currency conversion
+
+- Select components to convert
+- Specify a configuration for known currencies
+- Specify the source and target currency codes
+- Hit `Convert currency`
+
+![](screenshots/currency-conversion-before.webp)
+![](screenshots/currency-conversion-after.webp)
+
+Here is a sample configuration:
+
+```json
+[
+    {
+        "code": "RUB",
+        "schema": "123 ₽",
+        "digitGroupSeparator": " ",
+        "decimalSeparator": "",
+        "precision": 0,
+        "rate": 1
+    },
+    {
+        "code": "USD",
+        "schema": "$123",
+        "digitGroupSeparator": ",",
+        "decimalSeparator": ".",
+        "precision": 2,
+        "rate": 0.013
+    }
+]
+```
+
+| Parameter | Example | Description |
+| - | - | - |
+| `code` | `USD` | a unique identifier |
+| `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the number) |
+| `digitGroupSeparator` | `,` | used to separate thousands |
+| `decimalSeparator` | `.` | used to separate the fraction |
+| `precision` | `2` | the size of the fraction |
+| `rate` | `0.013` | the exchange rate to some fixed currency |
 
 ## Development
 

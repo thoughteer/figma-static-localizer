@@ -1,18 +1,42 @@
 type Settings = {
     serializedDictionary: string;
     serializedExceptions: string;
+    serializedCurrencies: string;
     sourceLanguage: string;
     targetLanguage: string;
+    sourceCurrencyCode: string;
+    targetCurrencyCode: string;
 };
 
-type Dictionary = {
-    header: string[];
-    rows: string[][];
+namespace SettingsManager {
+    const DEFAULT: Settings = {
+        serializedDictionary: 'RU\tEN\nПривет!\tHello!',
+        serializedExceptions: '',
+        serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
+        sourceLanguage: 'RU',
+        targetLanguage: 'EN',
+        sourceCurrencyCode: 'RUB',
+        targetCurrencyCode: 'USD',
+    };
+    const FIELDS = Object.keys(DEFAULT);
+    const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
+
+    export async function load(): Promise<Settings> {
+        const result = <Settings> {};
+        const promises = FIELDS.map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({field, value: value === undefined ? DEFAULT[field] : value})));
+        (await Promise.all(promises)).forEach(({field, value}) => {
+            result[field] = value;
+        });
+        return result;
+    }
+
+    export async function save(settings: Settings): Promise<void> {
+        await Promise.all(FIELDS.map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
+    }
 };
 
-type Mapping = {
-    [source: string]: string;
-};
+
+// *
 
 type Style = {
     id: string;
@@ -24,6 +48,18 @@ type Style = {
     lineHeight: LineHeight;
     textDecoration: TextDecoration;
     textStyleId: string;
+};
+
+
+// Translation
+
+type Dictionary = {
+    header: string[];
+    rows: string[][];
+};
+
+type Mapping = {
+    [source: string]: string;
 };
 
 type Section = {
@@ -46,31 +82,6 @@ type ReplacementFailure = {
 };
 
 type ReplacementAttempt = Replacement | ReplacementFailure;
-
-
-namespace SettingsManager {
-    const DEFAULT: Settings = {
-        serializedDictionary: 'RU\tEN\nПривет!\tHello!',
-        serializedExceptions: '',
-        sourceLanguage: 'RU',
-        targetLanguage: 'EN',
-    };
-    const FIELDS = Object.keys(DEFAULT);
-    const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
-
-    export async function load(): Promise<Settings> {
-        const result = <Settings> {};
-        const promises = FIELDS.map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({field, value: value === undefined ? DEFAULT[field] : value})));
-        (await Promise.all(promises)).forEach(({field, value}) => {
-            result[field] = value;
-        });
-        return result;
-    }
-
-    export async function save(settings: Settings): Promise<void> {
-        await Promise.all(FIELDS.map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
-    }
-};
 
 
 async function translateSelection(settings: Settings): Promise<void> {
@@ -139,18 +150,6 @@ async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<
     }
 
     await mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
-}
-
-async function findSelectedTextNodes(): Promise<TextNode[]> {
-    const result: TextNode[] = [];
-    figma.currentPage.selection.forEach(root => {
-        if (root.type === 'TEXT') {
-            result.push(root as TextNode);
-        } else if ('findAll' in root) {
-            (root as ChildrenMixin).findAll(node => node.type === 'TEXT').forEach(node => result.push(node as TextNode));
-        }
-    });
-    return result;
 }
 
 async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: RegExp[]): Promise<ReplacementAttempt> {
@@ -308,6 +307,119 @@ async function replaceText(replacement: Replacement): Promise<void> {
     }
 }
 
+
+// Conversion - Currency
+
+type Currency = {
+    code: string;
+    schema: string;
+    digitGroupSeparator: string;
+    decimalSeparator: string;
+    precision: number;
+    rate: number;
+};
+
+async function convertCurrencyInSelection(settings: Settings): Promise<void> {
+    const currencies = parseCurrencies(settings.serializedCurrencies);
+    console.log('Currencies:', currencies);
+    const sourceCurrency = currencies.filter(currency => currency.code === settings.sourceCurrencyCode)[0];
+    if (sourceCurrency === undefined) {
+        throw {error: 'unknown currency code `' + settings.sourceCurrencyCode + '`'};
+    }
+    const targetCurrency = currencies.filter(currency => currency.code === settings.targetCurrencyCode)[0];
+    if (targetCurrency === undefined) {
+        throw {error: 'unknown currency code `' + settings.targetCurrencyCode + '`'};
+    }
+    await replaceCurrencyInAllTexts(sourceCurrency, targetCurrency);
+}
+
+function parseCurrencies(serializedCurrencies: string): Currency[] {
+    return JSON.parse(serializedCurrencies).map((x: any, index: number) => {
+        const currency: Currency = {
+            code: null,
+            schema: null,
+            digitGroupSeparator: null,
+            decimalSeparator: null,
+            precision: null,
+            rate: null,
+        };
+        Object.keys(currency).forEach(key => {
+            if (x[key] === undefined || x[key] === null) {
+                throw {error: 'invalid currency definition: no `' + key + '` in entry #' + (index + 1)};
+            }
+            if (key === 'schema' && x[key].indexOf('123') === -1) {
+                throw {error: 'schema in entry #' + (index + 1) + ' should contain `123`'};
+            }
+            if (key === 'rate' && x[key] <= 0) {
+                throw {error: 'non-positive rate in entry #' + (index + 1)};
+            }
+            currency[key] = x[key];
+        });
+        if (currency.precision > 0 && currency.decimalSeparator === '') {
+            throw {error: 'entry #' + (index + 1) + ' must have a non-empty decimal separator'};
+        }
+        return currency;
+    });
+}
+
+async function replaceCurrencyInAllTexts(sourceCurrency: Currency, targetCurrency: Currency): Promise<void> {
+    const textNodes = await findSelectedTextNodes();
+
+    const escapedSchema = escapeForRegExp(sourceCurrency.schema);
+    const escapedDigitGroupSeparator = escapeForRegExp(sourceCurrency.digitGroupSeparator);
+    const escapedDecimalSeparator = escapeForRegExp(sourceCurrency.decimalSeparator);
+    const sourceValueRegExpString = '((?:[0-9]|' + escapedDigitGroupSeparator + ')+' + escapedDecimalSeparator + '[0-9]{' + sourceCurrency.precision + '})';
+    const sourceRegExp = new RegExp('^' + escapedSchema.replace('123', sourceValueRegExpString) + '$');
+    console.log('Source regular expression:', sourceRegExp.toString());
+
+    await Promise.all(textNodes.map(async node => {
+        const content = node.characters;
+        const match = content.match(sourceRegExp);
+        if (match !== null && match[1] !== null && match[1] !== undefined) {
+            const style = getSectionStyle(node, 0, node.characters.length);
+            if (style === figma.mixed) {
+                throw {error: 'node `' + content + '` has a mixed style'};
+            }
+
+            let sourceValueString = match[1].replace(new RegExp(escapedDigitGroupSeparator, 'g'), '');
+            if (sourceCurrency.decimalSeparator !== '') {
+                sourceValueString = sourceValueString.replace(sourceCurrency.decimalSeparator, '.');
+            }
+            const sourceValue = parseFloat(sourceValueString);
+            const targetValue = sourceValue * targetCurrency.rate / sourceCurrency.rate;
+            const truncatedTargetValue = Math.trunc(targetValue);
+            const targetValueFraction = targetValue - truncatedTargetValue;
+            const targetValueString = (
+                truncatedTargetValue.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,').replace(/,/g, targetCurrency.digitGroupSeparator) +
+                targetCurrency.decimalSeparator +
+                targetValueFraction.toFixed(targetCurrency.precision).slice(2)
+            );
+
+            await figma.loadFontAsync(style.fontName);
+            node.characters = targetCurrency.schema.replace('123', targetValueString);
+        }
+    }));
+}
+
+function escapeForRegExp(s: string): string {
+    return s.replace(/([[\^$.|?*+()])/g, '\\$1');
+}
+
+
+// Utilities
+
+async function findSelectedTextNodes(): Promise<TextNode[]> {
+    const result: TextNode[] = [];
+    figma.currentPage.selection.forEach(root => {
+        if (root.type === 'TEXT') {
+            result.push(root as TextNode);
+        } else if ('findAll' in root) {
+            (root as ChildrenMixin).findAll(node => node.type === 'TEXT').forEach(node => result.push(node as TextNode));
+        }
+    });
+    return result;
+}
+
 function getSectionStyle(node: TextNode, from: number, to: number): Style | PluginAPI['mixed'] {
     const fills = node.getRangeFills(from, to);
     if (fills === figma.mixed) {
@@ -411,7 +523,7 @@ figma.ui.onmessage = async message => {
         console.log('Loaded settings:', settings);
         figma.ui.postMessage({type: 'settings', settings});
         figma.ui.postMessage({type: 'ready'});
-    } else if (message.type === 'translate-selection') {
+    } else if (message.type === 'translate') {
         await SettingsManager.save(message.settings);
         await translateSelection(message.settings)
             .then(() => {
@@ -424,6 +536,21 @@ figma.ui.onmessage = async message => {
                     if ('failures' in reason) {
                         figma.ui.postMessage({type: 'failures', failures: reason.failures});
                     }
+                } else {
+                    figma.notify(reason.toString());
+                }
+                figma.ui.postMessage({type: 'ready'});
+            });
+    } else if (message.type === 'convert-currency') {
+        await SettingsManager.save(message.settings);
+        await convertCurrencyInSelection(message.settings)
+            .then(() => {
+                figma.notify('Done');
+                figma.closePlugin();
+            })
+            .catch(reason => {
+                if ('error' in reason) {
+                    figma.notify('Currency conversion failed: ' + reason.error);
                 } else {
                     figma.notify(reason.toString());
                 }

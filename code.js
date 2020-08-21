@@ -12,8 +12,11 @@ var SettingsManager;
     const DEFAULT = {
         serializedDictionary: 'RU\tEN\nПривет!\tHello!',
         serializedExceptions: '',
+        serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
+        sourceCurrencyCode: 'RUB',
+        targetCurrencyCode: 'USD',
     };
     const FIELDS = Object.keys(DEFAULT);
     const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
@@ -106,20 +109,6 @@ function replaceAllTexts(mapping, exceptions) {
             throw { error: 'found some untranslatable nodes', failures };
         }
         yield mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
-    });
-}
-function findSelectedTextNodes() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const result = [];
-        figma.currentPage.selection.forEach(root => {
-            if (root.type === 'TEXT') {
-                result.push(root);
-            }
-            else if ('findAll' in root) {
-                root.findAll(node => node.type === 'TEXT').forEach(node => result.push(node));
-            }
-        });
-        return result;
     });
 }
 function computeReplacement(node, mapping, exceptions) {
@@ -265,6 +254,101 @@ function replaceText(replacement) {
         }
     });
 }
+function convertCurrencyInSelection(settings) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const currencies = parseCurrencies(settings.serializedCurrencies);
+        console.log('Currencies:', currencies);
+        const sourceCurrency = currencies.filter(currency => currency.code === settings.sourceCurrencyCode)[0];
+        if (sourceCurrency === undefined) {
+            throw { error: 'unknown currency code `' + settings.sourceCurrencyCode + '`' };
+        }
+        const targetCurrency = currencies.filter(currency => currency.code === settings.targetCurrencyCode)[0];
+        if (targetCurrency === undefined) {
+            throw { error: 'unknown currency code `' + settings.targetCurrencyCode + '`' };
+        }
+        yield replaceCurrencyInAllTexts(sourceCurrency, targetCurrency);
+    });
+}
+function parseCurrencies(serializedCurrencies) {
+    return JSON.parse(serializedCurrencies).map((x, index) => {
+        const currency = {
+            code: null,
+            schema: null,
+            digitGroupSeparator: null,
+            decimalSeparator: null,
+            precision: null,
+            rate: null,
+        };
+        Object.keys(currency).forEach(key => {
+            if (x[key] === undefined || x[key] === null) {
+                throw { error: 'invalid currency definition: no `' + key + '` in entry #' + (index + 1) };
+            }
+            if (key === 'schema' && x[key].indexOf('123') === -1) {
+                throw { error: 'schema in entry #' + (index + 1) + ' should contain `123`' };
+            }
+            if (key === 'rate' && x[key] <= 0) {
+                throw { error: 'non-positive rate in entry #' + (index + 1) };
+            }
+            currency[key] = x[key];
+        });
+        if (currency.precision > 0 && currency.decimalSeparator === '') {
+            throw { error: 'entry #' + (index + 1) + ' must have a non-empty decimal separator' };
+        }
+        return currency;
+    });
+}
+function replaceCurrencyInAllTexts(sourceCurrency, targetCurrency) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const textNodes = yield findSelectedTextNodes();
+        const escapedSchema = escapeForRegExp(sourceCurrency.schema);
+        const escapedDigitGroupSeparator = escapeForRegExp(sourceCurrency.digitGroupSeparator);
+        const escapedDecimalSeparator = escapeForRegExp(sourceCurrency.decimalSeparator);
+        const sourceValueRegExpString = '((?:[0-9]|' + escapedDigitGroupSeparator + ')+' + escapedDecimalSeparator + '[0-9]{' + sourceCurrency.precision + '})';
+        const sourceRegExp = new RegExp('^' + escapedSchema.replace('123', sourceValueRegExpString) + '$');
+        console.log('Source regular expression:', sourceRegExp.toString());
+        yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
+            const content = node.characters;
+            const match = content.match(sourceRegExp);
+            if (match !== null && match[1] !== null && match[1] !== undefined) {
+                const style = getSectionStyle(node, 0, node.characters.length);
+                if (style === figma.mixed) {
+                    throw { error: 'node `' + content + '` has a mixed style' };
+                }
+                let sourceValueString = match[1].replace(new RegExp(escapedDigitGroupSeparator, 'g'), '');
+                if (sourceCurrency.decimalSeparator !== '') {
+                    sourceValueString = sourceValueString.replace(sourceCurrency.decimalSeparator, '.');
+                }
+                const sourceValue = parseFloat(sourceValueString);
+                const targetValue = sourceValue * targetCurrency.rate / sourceCurrency.rate;
+                const truncatedTargetValue = Math.trunc(targetValue);
+                const targetValueFraction = targetValue - truncatedTargetValue;
+                const targetValueString = (truncatedTargetValue.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,').replace(/,/g, targetCurrency.digitGroupSeparator) +
+                    targetCurrency.decimalSeparator +
+                    targetValueFraction.toFixed(targetCurrency.precision).slice(2));
+                yield figma.loadFontAsync(style.fontName);
+                node.characters = targetCurrency.schema.replace('123', targetValueString);
+            }
+        })));
+    });
+}
+function escapeForRegExp(s) {
+    return s.replace(/([[\^$.|?*+()])/g, '\\$1');
+}
+// Utilities
+function findSelectedTextNodes() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = [];
+        figma.currentPage.selection.forEach(root => {
+            if (root.type === 'TEXT') {
+                result.push(root);
+            }
+            else if ('findAll' in root) {
+                root.findAll(node => node.type === 'TEXT').forEach(node => result.push(node));
+            }
+        });
+        return result;
+    });
+}
 function getSectionStyle(node, from, to) {
     const fills = node.getRangeFills(from, to);
     if (fills === figma.mixed) {
@@ -359,7 +443,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         figma.ui.postMessage({ type: 'settings', settings });
         figma.ui.postMessage({ type: 'ready' });
     }
-    else if (message.type === 'translate-selection') {
+    else if (message.type === 'translate') {
         yield SettingsManager.save(message.settings);
         yield translateSelection(message.settings)
             .then(() => {
@@ -372,6 +456,23 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
                 if ('failures' in reason) {
                     figma.ui.postMessage({ type: 'failures', failures: reason.failures });
                 }
+            }
+            else {
+                figma.notify(reason.toString());
+            }
+            figma.ui.postMessage({ type: 'ready' });
+        });
+    }
+    else if (message.type === 'convert-currency') {
+        yield SettingsManager.save(message.settings);
+        yield convertCurrencyInSelection(message.settings)
+            .then(() => {
+            figma.notify('Done');
+            figma.closePlugin();
+        })
+            .catch(reason => {
+            if ('error' in reason) {
+                figma.notify('Currency conversion failed: ' + reason.error);
             }
             else {
                 figma.notify(reason.toString());
