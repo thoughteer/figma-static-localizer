@@ -1,10 +1,10 @@
 # Static Localizer
 
-A simple Figma plugin that allows you to translate texts using a static dictionary.
+A Figma plugin that allows you to localize your content using a static dictionary.
 
-It gracefully handles mixed text formatting.
-
-We do not support RTL languages yet.
+Unlike many other localization plugins, it
+- gracefully handles mixed text formatting
+- can perform currency conversion
 
 ## Installation
 
@@ -20,7 +20,7 @@ The plugin includes several modules:
 - [Translation](#Translation)
 - [Currency conversion](#Currency-conversion)
 
-Note, that the plugin will always remember the last used settings.
+Note that the plugin will always remember the last used settings.
 
 ### Translation
 
@@ -72,17 +72,19 @@ Also, check out this [tutorial on regular expressions](https://medium.com/factor
 #### Troubleshooting
 
 If translation fails, you will see the list of untranslatable nodes right in the UI.
-For each untranslatable node we provide
+For each untranslatable node you will get
 - a hyperlink to it
-- a translation error description
+- a full error description
 
-The plugin will also suggest a list of phrases that should be translated in order to complete the translation.
+The plugin will then also suggest a list of phrases that should be translated in order to complete the translation.
 
 ### Currency conversion
 
 - Select components to convert
+- Invoke this plugin
+- Go to the `Conversion` tab
 - Specify a configuration for known currencies
-- Specify the source and target currency codes
+- Specify source and target currency codes
 - Hit `Convert currency`
 
 ![](screenshots/currency-conversion-before.webp)
@@ -114,10 +116,10 @@ Here is a sample configuration:
 | Parameter | Example | Description |
 | - | - | - |
 | `code` | `USD` | a unique identifier |
-| `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the number) |
+| `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the numeric value) |
 | `digitGroupSeparator` | `,` | used to separate thousands |
 | `decimalSeparator` | `.` | used to separate the fraction |
-| `precision` | `2` | the size of the fraction |
+| `precision` | `2` | the size of the fraction in digits |
 | `rate` | `0.013` | the exchange rate to some fixed currency |
 
 ## Development
