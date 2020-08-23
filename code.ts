@@ -372,7 +372,7 @@ async function replaceCurrencyInAllTexts(sourceCurrency: Currency, targetCurrenc
     const sourceRegExp = new RegExp('^' + escapedSchema.replace('123', sourceValueRegExpString) + '$');
     console.log('Source regular expression:', sourceRegExp.toString());
 
-    await Promise.all(textNodes.map(async node => {
+    await mapWithRateLimit(textNodes, 250, async node => {
         const content = node.characters;
         const match = content.match(sourceRegExp);
         if (match !== null && match[1] !== null && match[1] !== undefined) {
@@ -398,7 +398,7 @@ async function replaceCurrencyInAllTexts(sourceCurrency: Currency, targetCurrenc
             await figma.loadFontAsync(style.fontName);
             node.characters = targetCurrency.schema.replace('123', targetValueString);
         }
-    }));
+    });
 }
 
 function escapeForRegExp(s: string): string {

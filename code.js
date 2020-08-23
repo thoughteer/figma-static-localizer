@@ -306,7 +306,7 @@ function replaceCurrencyInAllTexts(sourceCurrency, targetCurrency) {
         const sourceValueRegExpString = '((?:[0-9]|' + escapedDigitGroupSeparator + ')+' + escapedDecimalSeparator + '[0-9]{' + sourceCurrency.precision + '})';
         const sourceRegExp = new RegExp('^' + escapedSchema.replace('123', sourceValueRegExpString) + '$');
         console.log('Source regular expression:', sourceRegExp.toString());
-        yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
+        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
             const content = node.characters;
             const match = content.match(sourceRegExp);
             if (match !== null && match[1] !== null && match[1] !== undefined) {
@@ -328,7 +328,7 @@ function replaceCurrencyInAllTexts(sourceCurrency, targetCurrency) {
                 yield figma.loadFontAsync(style.fontName);
                 node.characters = targetCurrency.schema.replace('123', targetValueString);
             }
-        })));
+        }));
     });
 }
 function escapeForRegExp(s) {
