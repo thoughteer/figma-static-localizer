@@ -6,6 +6,7 @@ type Settings = {
     targetLanguage: string;
     sourceCurrencyCode: string;
     targetCurrencyCode: string;
+    serializedFontSubstitutions: string;
 };
 
 namespace SettingsManager {
@@ -17,6 +18,7 @@ namespace SettingsManager {
         targetLanguage: 'EN',
         sourceCurrencyCode: 'RUB',
         targetCurrencyCode: 'USD',
+        serializedFontSubstitutions: '[]',
     };
     const FIELDS = Object.keys(DEFAULT);
     const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
@@ -245,24 +247,6 @@ function keepAsIs(content: string, exceptions: RegExp[]): boolean {
     return false;
 };
 
-function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.characters.length): Section[] {
-    const style = getSectionStyle(node, from, to);
-    if (style !== figma.mixed) {
-        return [{from, to, style}];
-    }
-
-    const center = Math.floor((from + to) / 2);
-    const leftSections = sliceIntoSections(node, from, center);
-    const rightSections = sliceIntoSections(node, center, to);
-    const lastLeftSection = leftSections[leftSections.length-1];
-    const firstRightSection = rightSections[0];
-    if (lastLeftSection.style.id === firstRightSection.style.id) {
-        firstRightSection.from = lastLeftSection.from;
-        leftSections.pop();
-    }
-    return leftSections.concat(rightSections);
-}
-
 function suggest(node: TextNode, content: string, sections: Section[], mapping: Mapping, exceptions: RegExp[]): string[] {
     const n = content.length;
     const styleScores = new Map<string, number>();
@@ -406,6 +390,63 @@ function escapeForRegExp(s: string): string {
 }
 
 
+// Font substitution
+
+async function sendAvailableFonts() {
+    const availableFonts = (await figma.listAvailableFontsAsync()).map(f => f.fontName);
+    figma.ui.postMessage({type: 'available-fonts', availableFonts});
+}
+
+async function sendSelectionFonts() {
+    const textNodes = await findSelectedTextNodes();
+    const selectionFontIds = new Set();
+    const selectionFonts = [];
+    await Promise.all(textNodes.map(node => {
+        if (node.characters === '') {
+            return;
+        }
+        const sections = sliceIntoSections(node);
+        for (let {style} of sections) {
+            const fontId = JSON.stringify(style.fontName);
+            if (!selectionFontIds.has(fontId)) {
+                selectionFontIds.add(fontId);
+                selectionFonts.push(style.fontName);
+            }
+        }
+    }));
+    figma.ui.postMessage({type: 'selection-fonts', selectionFonts});
+}
+
+async function substituteFontsInSelection(settings: Settings): Promise<void> {
+    const substitutions = JSON.parse(settings.serializedFontSubstitutions);
+    const fontMapping = new Map<string, FontName>();
+    for (let substitution of substitutions) {
+        const sourceFontId = JSON.stringify(substitution.sourceFont);
+        fontMapping.set(sourceFontId, substitution.targetFont);
+        await figma.loadFontAsync(substitution.targetFont);
+    }
+
+    const textNodes = await findSelectedTextNodes();
+    await Promise.all(textNodes.map(async node => {
+        if (node.characters === '') {
+            return;
+        }
+        const sections = sliceIntoSections(node);
+        for (let {style} of sections) {
+            await figma.loadFontAsync(style.fontName);
+        }
+        for (let {from, to, style} of sections) {
+            const fontId = JSON.stringify(style.fontName);
+            if (fontMapping.has(fontId)) {
+                const newStyle = {...style};
+                newStyle.fontName = fontMapping.get(fontId);
+                setSectionStyle(node, from, to, newStyle);
+            }
+        }
+    }));
+}
+
+
 // Utilities
 
 async function findSelectedTextNodes(): Promise<TextNode[]> {
@@ -418,6 +459,24 @@ async function findSelectedTextNodes(): Promise<TextNode[]> {
         }
     });
     return result;
+}
+
+function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.characters.length): Section[] {
+    const style = getSectionStyle(node, from, to);
+    if (style !== figma.mixed) {
+        return [{from, to, style}];
+    }
+
+    const center = Math.floor((from + to) / 2);
+    const leftSections = sliceIntoSections(node, from, center);
+    const rightSections = sliceIntoSections(node, center, to);
+    const lastLeftSection = leftSections[leftSections.length-1];
+    const firstRightSection = rightSections[0];
+    if (lastLeftSection.style.id === firstRightSection.style.id) {
+        firstRightSection.from = lastLeftSection.from;
+        leftSections.pop();
+    }
+    return leftSections.concat(rightSections);
 }
 
 function getSectionStyle(node: TextNode, from: number, to: number): Style | PluginAPI['mixed'] {
@@ -470,6 +529,8 @@ function getSectionStyle(node: TextNode, from: number, to: number): Style | Plug
 }
 
 function setSectionStyle(node: TextNode, from: number, to: number, style: Style): void {
+    node.setRangeTextStyleId(from, to, style.textStyleId);
+
     node.setRangeFills(from, to, style.fills);
     node.setRangeFillStyleId(from, to, style.fillStyleId);
     node.setRangeFontName(from, to, style.fontName);
@@ -477,7 +538,6 @@ function setSectionStyle(node: TextNode, from: number, to: number, style: Style)
     node.setRangeLetterSpacing(from, to, style.letterSpacing);
     node.setRangeLineHeight(from, to, style.lineHeight);
     node.setRangeTextDecoration(from, to, style.textDecoration);
-    node.setRangeTextStyleId(from, to, style.textStyleId);
 }
 
 function mapWithRateLimit<X, Y>(array: X[], rateLimit: number, mapper: (x: X) => Promise<Y>): Promise<Y[]> {
@@ -523,6 +583,10 @@ figma.ui.onmessage = async message => {
         console.log('Loaded settings:', settings);
         figma.ui.postMessage({type: 'settings', settings});
         figma.ui.postMessage({type: 'ready'});
+    } else if (message.type === 'load-available-fonts') {
+        await sendAvailableFonts();
+    } else if (message.type === 'load-selection-fonts') {
+        await sendSelectionFonts();
     } else if (message.type === 'translate') {
         await SettingsManager.save(message.settings);
         await translateSelection(message.settings)
@@ -556,6 +620,21 @@ figma.ui.onmessage = async message => {
                 }
                 figma.ui.postMessage({type: 'ready'});
             });
+    } else if (message.type === 'substitute-fonts') {
+        await SettingsManager.save(message.settings);
+        await substituteFontsInSelection(message.settings)
+            .then(() => {
+                figma.notify('Done');
+                figma.closePlugin();
+            })
+            .catch(reason => {
+                if ('error' in reason) {
+                    figma.notify('Font substitution failed: ' + reason.error);
+                } else {
+                    figma.notify(reason.toString());
+                }
+                figma.ui.postMessage({type: 'ready'});
+            });
     } else if (message.type === 'focus-node') {
         figma.viewport.zoom = 1000.0;
         figma.viewport.scrollAndZoomIntoView([figma.getNodeById(message.id)]);
@@ -563,3 +642,4 @@ figma.ui.onmessage = async message => {
     }
 };
 
+figma.on("selectionchange", sendSelectionFonts);
