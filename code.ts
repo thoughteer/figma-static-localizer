@@ -401,7 +401,7 @@ async function sendSelectionFonts() {
     const textNodes = await findSelectedTextNodes();
     const selectionFontIds = new Set();
     const selectionFonts = [];
-    await Promise.all(textNodes.map(node => {
+    await mapWithRateLimit(textNodes, 250, async node => {
         if (node.characters === '') {
             return;
         }
@@ -413,7 +413,7 @@ async function sendSelectionFonts() {
                 selectionFonts.push(style.fontName);
             }
         }
-    }));
+    });
     figma.ui.postMessage({type: 'selection-fonts', selectionFonts});
 }
 
@@ -427,7 +427,7 @@ async function substituteFontsInSelection(settings: Settings): Promise<void> {
     }
 
     const textNodes = await findSelectedTextNodes();
-    await Promise.all(textNodes.map(async node => {
+    await mapWithRateLimit(textNodes, 250, async node => {
         if (node.characters === '') {
             return;
         }
@@ -443,7 +443,7 @@ async function substituteFontsInSelection(settings: Settings): Promise<void> {
                 setSectionStyle(node, from, to, newStyle);
             }
         }
-    }));
+    });
 }
 
 

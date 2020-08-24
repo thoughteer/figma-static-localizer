@@ -331,7 +331,7 @@ function sendSelectionFonts() {
         const textNodes = yield findSelectedTextNodes();
         const selectionFontIds = new Set();
         const selectionFonts = [];
-        yield Promise.all(textNodes.map(node => {
+        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
             if (node.characters === '') {
                 return;
             }
@@ -357,7 +357,7 @@ function substituteFontsInSelection(settings) {
             yield figma.loadFontAsync(substitution.targetFont);
         }
         const textNodes = yield findSelectedTextNodes();
-        yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
+        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
             if (node.characters === '') {
                 return;
             }
@@ -373,7 +373,7 @@ function substituteFontsInSelection(settings) {
                     setSectionStyle(node, from, to, newStyle);
                 }
             }
-        })));
+        }));
     });
 }
 // Utilities
