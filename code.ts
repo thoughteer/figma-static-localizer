@@ -292,7 +292,7 @@ async function replaceText(replacement: Replacement): Promise<void> {
 }
 
 
-// Conversion - Currency
+// Currency conversion
 
 type Currency = {
     code: string;

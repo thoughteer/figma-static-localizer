@@ -5,6 +5,7 @@ A Figma plugin that allows you to localize your content using a static dictionar
 Unlike many other localization plugins, it
 - gracefully handles mixed text formatting
 - can perform currency conversion
+- can perform font substitution
 
 ## Installation
 
@@ -19,6 +20,7 @@ in Figma Desktop, and select the downloaded `manifest.json` file.
 The plugin includes several modules:
 - [Translation](#Translation)
 - [Currency conversion](#Currency-conversion)
+- [Font substitution](#Font-substitution)
 
 Note that the plugin will always remember the last used settings.
 
@@ -31,8 +33,8 @@ Note that the plugin will always remember the last used settings.
 - Specify source and target languages
 - Hit `Translate`
 
-![](screenshots/translation-before.webp)
-![](screenshots/translation-after.webp)
+<!-- ![](screenshots/translation-before.webp)
+![](screenshots/translation-after.webp) -->
 
 #### Dictionary
 
@@ -83,12 +85,9 @@ The plugin will then also suggest a list of phrases that should be translated in
 - Select components to convert
 - Invoke this plugin
 - Go to the `Conversion` tab
-- Specify a configuration for known currencies
+- Specify a configuration for known currencies or load it from a file
 - Specify source and target currency codes
 - Hit `Convert currency`
-
-![](screenshots/currency-conversion-before.webp)
-![](screenshots/currency-conversion-after.webp)
 
 Here is a sample configuration:
 
@@ -121,6 +120,16 @@ Here is a sample configuration:
 | `decimalSeparator` | `.` | used to separate the fraction |
 | `precision` | `2` | the size of the fraction in digits |
 | `rate` | `0.013` | the exchange rate to some fixed currency |
+
+### Font substitution
+
+- Select components to transform
+- Invoke this plugin
+- Go to the `Fonts` tab
+- Configure a font mapping by picking font pairs and clicking the tick
+- Hit `Substitute fonts`
+
+You can download configured mappings and then load them latter from a file.
 
 ## Development
 

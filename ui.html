@@ -410,12 +410,9 @@ a {
             <div class="label">&nbsp;</div>
             <button class="button button--secondary" id="defineFontSubstitution">&checkmark;</button>
         </div>
-        <div class="block container" id="fontSubstitutions">
-        </div>
-        <div class="block">
-            <div class="row">
-                <button class="button button--primary" id="substituteFonts" disabled style="margin-left: auto; margin-right: auto;">Substitute fonts</button>
-            </div>
+        <div class="block container" id="fontSubstitutions"></div>
+        <div class="row">
+            <button class="button button--primary" id="substituteFonts" disabled style="margin-left: auto; margin-right: auto;">Substitute fonts</button>
         </div>
     </div>
 
@@ -459,8 +456,7 @@ a {
         document.getElementById('currenciesFile').onchange = e => loadFile(e, 'serializedCurrencies');
         document.getElementById('currenciesFile').onclick = e => { e.target.value = null; };
         document.getElementById('fontSubstitutionsFile').onchange = e => {
-            loadFile(e, 'serializedFontSubstitutions');
-            renderFontSubstitutions();
+            loadFile(e, 'serializedFontSubstitutions', renderFontSubstitutions);
         };
         document.getElementById('fontSubstitutionsFile').onclick = e => { e.target.value = null; };
 
@@ -495,7 +491,7 @@ a {
             return result;
         }
 
-        function loadFile(e, holderId) {
+        function loadFile(e, holderId, callback) {
             const file = e.target.files[0];
             if (!file) {
                 return;
@@ -504,6 +500,7 @@ a {
             reader.onload = e => {
                 console.log(e.target.result);
                 document.getElementById(holderId).value = e.target.result;
+                callback.apply();
             };
             reader.readAsText(file);
         }
