@@ -4,6 +4,7 @@ A Figma plugin that allows you to localize your content using a static dictionar
 
 Unlike many other localization plugins, it
 - gracefully handles mixed text formatting
+- correctly renders RTL texts
 - can perform currency conversion
 - can perform font substitution
 
@@ -18,9 +19,9 @@ in Figma Desktop, and select the downloaded `manifest.json` file.
 ## Usage
 
 The plugin includes several modules:
-- [Translation](#Translation)
-- [Currency conversion](#Currency-conversion)
-- [Font substitution](#Font-substitution)
+- [Translation](#translation)
+- [Currency conversion](#currency-conversion)
+- [Font substitution](#font-substitution)
 
 Note that the plugin will always remember the last used settings.
 
@@ -28,13 +29,14 @@ Note that the plugin will always remember the last used settings.
 
 - Select components to translate
 - Invoke this plugin
-- Specify a [dictionary](#Dictionary) explicitly or load it from a file
-- Specify [exceptions](#Exceptions) explicitly or load them from a file
+- Specify a [dictionary](#dictionary) explicitly or load it from a file
+- Specify [exceptions](#exceptions) explicitly or load them from a file
 - Specify source and target languages
+- Mark the target language as RTL if needed
 - Hit `Translate`
 
-<!-- ![](screenshots/translation-before.webp)
-![](screenshots/translation-after.webp) -->
+![](screenshots/translation-before.webp)
+![](screenshots/translation-after.webp)
 
 #### Dictionary
 
@@ -80,6 +82,10 @@ For each untranslatable node you will get
 
 The plugin will then also suggest a list of phrases that should be translated in order to complete the translation.
 
+You might get a `... does not fit into the box` error while translating into an RTL language
+if your font doesn't have the required symbols.
+Try [font substitution](#font-substitution) in this case.
+
 ### Currency conversion
 
 - Select components to convert
@@ -88,6 +94,9 @@ The plugin will then also suggest a list of phrases that should be translated in
 - Specify a configuration for known currencies or load it from a file
 - Specify source and target currency codes
 - Hit `Convert currency`
+
+![](screenshots/currency-conversion-before.webp)
+![](screenshots/currency-conversion-after.webp)
 
 Here is a sample configuration:
 
@@ -128,6 +137,9 @@ Here is a sample configuration:
 - Go to the `Fonts` tab
 - Configure a font mapping by picking font pairs and clicking the tick
 - Hit `Substitute fonts`
+
+![](screenshots/font-substitution-before.webp)
+![](screenshots/font-substitution-after.webp)
 
 You can download configured mappings and then load them latter from a file.
 
