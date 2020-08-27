@@ -126,6 +126,9 @@ async function getMapping(dictionary: Dictionary, sourceLanguage: string, target
         const sourceString = row[sourceColumnIndex];
         const targetString = row[targetColumnIndex];
         if (targetString.trim() !== '') {
+            if (sourceString in result) {
+                throw {error: 'multiple translations for `' + sourceString + '` in the dictionary'};
+            }
             result[sourceString] = targetString;
         }
     });
@@ -503,6 +506,7 @@ async function convertCurrencyInSelection(settings: Settings): Promise<void> {
 }
 
 function parseCurrencies(serializedCurrencies: string): Currency[] {
+    const codeSet = new Set<string>();
     return JSON.parse(serializedCurrencies).map((x: any, index: number) => {
         const currency: Currency = {
             code: null,
@@ -527,6 +531,10 @@ function parseCurrencies(serializedCurrencies: string): Currency[] {
         if (currency.precision > 0 && currency.decimalSeparator === '') {
             throw {error: 'entry #' + (index + 1) + ' must have a non-empty decimal separator'};
         }
+        if (codeSet.has(currency.code)) {
+            throw {error: 'multiple entries for `' + currency.code + '`'};
+        }
+        codeSet.add(currency.code);
         return currency;
     });
 }

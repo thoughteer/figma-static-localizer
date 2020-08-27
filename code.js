@@ -82,6 +82,9 @@ function getMapping(dictionary, sourceLanguage, targetLanguage) {
             const sourceString = row[sourceColumnIndex];
             const targetString = row[targetColumnIndex];
             if (targetString.trim() !== '') {
+                if (sourceString in result) {
+                    throw { error: 'multiple translations for `' + sourceString + '` in the dictionary' };
+                }
                 result[sourceString] = targetString;
             }
         });
@@ -433,6 +436,7 @@ function convertCurrencyInSelection(settings) {
     });
 }
 function parseCurrencies(serializedCurrencies) {
+    const codeSet = new Set();
     return JSON.parse(serializedCurrencies).map((x, index) => {
         const currency = {
             code: null,
@@ -457,6 +461,10 @@ function parseCurrencies(serializedCurrencies) {
         if (currency.precision > 0 && currency.decimalSeparator === '') {
             throw { error: 'entry #' + (index + 1) + ' must have a non-empty decimal separator' };
         }
+        if (codeSet.has(currency.code)) {
+            throw { error: 'multiple entries for `' + currency.code + '`' };
+        }
+        codeSet.add(currency.code);
         return currency;
     });
 }
