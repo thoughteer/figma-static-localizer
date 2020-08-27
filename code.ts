@@ -781,7 +781,8 @@ figma.ui.onmessage = async message => {
         await translateSelection(message.settings)
             .then(() => {
                 figma.notify('Done');
-                figma.closePlugin();
+                figma.ui.postMessage({type: 'failures', failures: []});
+                figma.ui.postMessage({type: 'ready'});
             })
             .catch(reason => {
                 if ('error' in reason) {
@@ -799,7 +800,7 @@ figma.ui.onmessage = async message => {
         await convertCurrencyInSelection(message.settings)
             .then(() => {
                 figma.notify('Done');
-                figma.closePlugin();
+                figma.ui.postMessage({type: 'ready'});
             })
             .catch(reason => {
                 if ('error' in reason) {
@@ -812,10 +813,10 @@ figma.ui.onmessage = async message => {
     } else if (message.type === 'substitute-fonts') {
         await SettingsManager.save(message.settings);
         await substituteFontsInSelection(message.settings)
-            .then(() => {
+            .then(() => sendSelectionFonts().then(() => {
                 figma.notify('Done');
-                figma.closePlugin();
-            })
+                figma.ui.postMessage({type: 'ready'});
+            }))
             .catch(reason => {
                 if ('error' in reason) {
                     figma.notify('Font substitution failed: ' + reason.error);

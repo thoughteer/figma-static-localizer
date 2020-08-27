@@ -693,7 +693,8 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         yield translateSelection(message.settings)
             .then(() => {
             figma.notify('Done');
-            figma.closePlugin();
+            figma.ui.postMessage({ type: 'failures', failures: [] });
+            figma.ui.postMessage({ type: 'ready' });
         })
             .catch(reason => {
             if ('error' in reason) {
@@ -713,7 +714,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         yield convertCurrencyInSelection(message.settings)
             .then(() => {
             figma.notify('Done');
-            figma.closePlugin();
+            figma.ui.postMessage({ type: 'ready' });
         })
             .catch(reason => {
             if ('error' in reason) {
@@ -728,10 +729,10 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     else if (message.type === 'substitute-fonts') {
         yield SettingsManager.save(message.settings);
         yield substituteFontsInSelection(message.settings)
-            .then(() => {
+            .then(() => sendSelectionFonts().then(() => {
             figma.notify('Done');
-            figma.closePlugin();
-        })
+            figma.ui.postMessage({ type: 'ready' });
+        }))
             .catch(reason => {
             if ('error' in reason) {
                 figma.notify('Font substitution failed: ' + reason.error);
