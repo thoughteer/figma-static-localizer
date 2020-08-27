@@ -4,6 +4,7 @@ type Settings = {
     serializedCurrencies: string;
     sourceLanguage: string;
     targetLanguage: string;
+    targetLanguageIsRTL: boolean;
     sourceCurrencyCode: string;
     targetCurrencyCode: string;
     serializedFontSubstitutions: string;
@@ -16,6 +17,7 @@ namespace SettingsManager {
         serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
+        targetLanguageIsRTL: false,
         sourceCurrencyCode: 'RUB',
         targetCurrencyCode: 'USD',
         serializedFontSubstitutions: '[]',
@@ -90,11 +92,11 @@ async function translateSelection(settings: Settings): Promise<void> {
     const dictionary = await parseDictionary(settings.serializedDictionary);
     const mapping = await getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
     const exceptions = await parseExceptions(settings.serializedExceptions);
-    await replaceAllTexts(mapping, exceptions);
+    await replaceAllTexts(mapping, exceptions, settings.targetLanguageIsRTL);
 }
 
 async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
-    const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field.trim())));
+    const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field).trim()));
     if (table.length === 0) {
         throw {error: 'no header in the dictionary'};
     }
@@ -141,17 +143,25 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
     });
 }
 
-async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
+async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[], targetLanguageIsRTL: boolean): Promise<void> {
     const textNodes = await findSelectedTextNodes();
 
-    const replacements = await mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions));
-    const failures = replacements.filter(r => r !== null && 'error' in r) as ReplacementFailure[];
+    let replacements = (await mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions))).filter(r => r !== null);
+    let failures = replacements.filter(r => 'error' in r) as ReplacementFailure[];
+    if (failures.length == 0 && targetLanguageIsRTL) {
+        replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+        failures = replacements.filter(r => 'error' in r) as ReplacementFailure[];
+    }
     if (failures.length > 0) {
         console.log('Failures:', failures);
         throw {error: 'found some untranslatable nodes', failures};
     }
 
-    await mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
+    if (targetLanguageIsRTL) {
+        await reverseNodeAlignments(textNodes);
+    }
+
+    await mapWithRateLimit(replacements, 50, replaceText);
 }
 
 async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: RegExp[]): Promise<ReplacementAttempt> {
@@ -161,12 +171,18 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
     }
 
     const sections = sliceIntoSections(node);
-
     const suggestions = suggest(node, content, sections, mapping, exceptions);
 
     if (!(content in mapping)) {
         return {nodeId: node.id, error: 'No translation for `' + content + '`', suggestions};
     }
+
+    const result: Replacement = {
+        node,
+        translation: mapping[content],
+        baseStyle: null,
+        sections: [],
+    };
 
     const errorLog = [
         'Cannot determine a base style for `' + content + '`',
@@ -181,13 +197,6 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
             styles.push({humanId: from + '-' + to, ...style});
         }
     });
-
-    const result: Replacement = {
-        node,
-        translation: mapping[content],
-        baseStyle: null,
-        sections: [],
-    };
 
     for (let baseStyleCandidate of styles) {
         const prelude = 'Style ' + baseStyleCandidate.humanId + ' is not base: ';
@@ -235,7 +244,7 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
 }
 
 function normalizeContent(content: string): string {
-    return content.replace(/[\u000A\u2028\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
+    return content.replace(/[\u000A\u00A0\u2028\u202F]/g, ' ').replace(/ +/g, ' ');
 }
 
 function keepAsIs(content: string, exceptions: RegExp[]): boolean {
@@ -278,10 +287,175 @@ function suggest(node: TextNode, content: string, sections: Section[], mapping: 
     return result;
 }
 
+async function reverseAndWrapReplacement(replacement: Replacement): Promise<ReplacementAttempt> {
+    const reversedReplacement = await reverseReplacement(replacement);
+    if (replacement.node.textAutoResize === 'WIDTH_AND_HEIGHT') {
+        return reversedReplacement;
+    }
+    return wrapReplacement(reversedReplacement);
+}
+
+async function reverseReplacement(replacement: Replacement): Promise<Replacement> {
+    const {reversedText: reversedTranslation, nonReversibleRanges} = reverseText(replacement.translation);
+    const n = replacement.translation.length;
+    const reversedSections = replacement.sections.map(({from, to, style}) => ({from: n - to, to: n - from, style}));
+    const overridingSections: Section[] = [];
+
+    for (let range of nonReversibleRanges) {
+        overridingSections.push({...range, style: replacement.baseStyle});
+        for (let {from, to, style} of reversedSections) {
+            if (from < range.to && to > range.from) {
+                overridingSections.push({
+                    from: range.from + range.to - Math.min(to, range.to),
+                    to: range.from + range.to - Math.max(from, range.from),
+                    style,
+                });
+            }
+        }
+    }
+
+    const result = {
+        node: replacement.node,
+        translation: reversedTranslation,
+        baseStyle: replacement.baseStyle,
+        sections: reversedSections.concat(overridingSections),
+    };
+
+    console.log('Reversed replacement:', result);
+
+    return result;
+}
+
+function reverseText(text: string): {reversedText: string, nonReversibleRanges: {from: number, to: number}[]} {
+    // TODO: replace with a proper implementation for RTL languages
+    const words: string[] = [];
+    const nonReversibleWordStack: string[] = [];
+    const nonReversibleRanges: {from: number, to: number}[] = [];
+    const dumpNonReversibleWordStack = (to: number) => {
+        if (nonReversibleWordStack.length > 0) {
+            const phrase = nonReversibleWordStack.reverse().join(' ');
+            words.push(phrase);
+            nonReversibleRanges.push({from: to - phrase.length, to});
+            nonReversibleWordStack.length = 0;
+        }
+    };
+    let offset = -1;
+    for (let word of text.split(' ').reverse()) {
+        if (isReversible(word)) {
+            dumpNonReversibleWordStack(offset);
+            words.push(word.split('').reverse().join(''));
+        } else {
+            nonReversibleWordStack.push(word);
+        }
+        offset += word.length + 1;
+    };
+    dumpNonReversibleWordStack(offset);
+    return {reversedText: words.join(' '), nonReversibleRanges};
+}
+
+function isReversible(word: string): boolean {
+    return /[\u0500-\u0700]|^$/.test(word);
+}
+
+async function wrapReplacement(replacement: Replacement): Promise<ReplacementAttempt> {
+    await loadFontsForReplacement(replacement);
+
+    const bufferNode = replacement.node.clone();
+    bufferNode.opacity = 0;
+    bufferNode.characters = '';
+    bufferNode.textAutoResize = 'HEIGHT';
+
+    let wrappedTranslationLines: string[] = [];
+    let wrappedSections: Section[] = [];
+
+    const words = replacement.translation.split(' ');
+    let wordIndex = words.length - 1;
+    let lineStart = replacement.translation.length;
+    let lineEnd = lineStart;
+    let currentLineOffset = 0;
+    while (wordIndex >= 0) {
+        let currentLine = '';
+        let lineBreakStyle = replacement.baseStyle;
+        while (wordIndex >= 0) {
+            const word = words[wordIndex];
+            const insertion = wordIndex > 0 ? (' ' + word) : word;
+            const originalBufferHeight = bufferNode.height;
+            bufferNode.insertCharacters(currentLineOffset, insertion, 'AFTER');
+            lineStart -= insertion.length;
+            for (let {from, to, style} of replacement.sections) {
+                if (from < lineStart + insertion.length && to > lineStart) {
+                    setSectionStyle(bufferNode, currentLineOffset + Math.max(0, from - lineStart), currentLineOffset + Math.min(to - lineStart, insertion.length), style);
+                }
+            }
+            const newBufferHeight = bufferNode.height;
+            if (newBufferHeight > originalBufferHeight) {
+                bufferNode.deleteCharacters(currentLineOffset, currentLineOffset + insertion.length);
+                lineStart += insertion.length;
+                if (lineStart == lineEnd) {
+                    bufferNode.remove();
+                    return {nodeId: replacement.node.id, error: 'Word `' + reverseText(insertion).reversedText + '` does not fit into the box', suggestions: []};
+                }
+                const lineBreakOffset = currentLineOffset + currentLine.length;
+                bufferNode.insertCharacters(lineBreakOffset, '\u2028', 'BEFORE');
+                for (let {from, to, style} of replacement.sections.reverse()) {
+                    if (from <= lineStart - 1 && lineStart - 1 < to) {
+                        lineBreakStyle = style;
+                        break;
+                    }
+                }
+                setSectionStyle(bufferNode, lineBreakOffset, lineBreakOffset + 1, lineBreakStyle);
+                break;
+            }
+            currentLine = insertion + currentLine;
+            wordIndex --;
+        }
+
+        wrappedTranslationLines.push(currentLine);
+        for (let {from, to, style} of replacement.sections) {
+            if (from < lineEnd && to > lineStart) {
+                wrappedSections.push({from: currentLineOffset + Math.max(0, from - lineStart), to: currentLineOffset + Math.min(to, lineEnd) - lineStart, style});
+            }
+        }
+        if (wordIndex >= 0) {
+            wrappedSections.push({from: currentLineOffset + currentLine.length, to: currentLineOffset + currentLine.length + 1, style: lineBreakStyle});
+        }
+        lineEnd = lineStart;
+        currentLineOffset += currentLine.length + 1;
+    }
+
+    const result = {
+        node: replacement.node,
+        translation: wrappedTranslationLines.join('\u2028'),
+        baseStyle: replacement.baseStyle,
+        sections: wrappedSections,
+    };
+
+    bufferNode.remove();
+
+    console.log('Wrapped replacement:', result);
+
+    return result;
+}
+
+async function reverseNodeAlignments(nodes: TextNode[]): Promise<void> {
+    const alignments = nodes.map(node => ({node, alignment: node.textAlignHorizontal}));
+    await mapWithRateLimit(alignments, 500, async ({node, alignment}) => {
+        if (alignment !== 'LEFT' && alignment !== 'RIGHT') {
+            return;
+        }
+        await loadFontsForNode(node);
+        if (alignment === 'LEFT') {
+            node.textAlignHorizontal = 'RIGHT';
+        } else if (alignment === 'RIGHT') {
+            node.textAlignHorizontal = 'LEFT';
+        }
+    });
+}
+
 async function replaceText(replacement: Replacement): Promise<void> {
+    await loadFontsForReplacement(replacement);
+
     const {node, translation, baseStyle, sections} = replacement;
-    await figma.loadFontAsync(baseStyle.fontName);
-    await Promise.all(sections.map(({style}) => figma.loadFontAsync(style.fontName)));
     node.characters = translation;
     if (sections.length > 0) {
         setSectionStyle(node, 0, translation.length, baseStyle);
@@ -289,6 +463,17 @@ async function replaceText(replacement: Replacement): Promise<void> {
             setSectionStyle(node, from, to, style);
         }
     }
+}
+
+async function loadFontsForReplacement(replacement: Replacement): Promise<void> {
+    await figma.loadFontAsync(replacement.baseStyle.fontName);
+    await Promise.all(replacement.sections.map(({style}) => figma.loadFontAsync(style.fontName)));
+}
+
+async function loadFontsForNode(node: TextNode): Promise<void> {
+    await Promise.all(Array.from({length: node.characters.length}, (_, k) => k).map(i => {
+        return figma.loadFontAsync(node.getRangeFontName(i, i + 1) as FontName);
+    }));
 }
 
 
@@ -462,6 +647,10 @@ async function findSelectedTextNodes(): Promise<TextNode[]> {
 }
 
 function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.characters.length): Section[] {
+    if (to == from) {
+        return [];
+    }
+
     const style = getSectionStyle(node, from, to);
     if (style !== figma.mixed) {
         return [{from, to, style}];

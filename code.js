@@ -15,6 +15,7 @@ var SettingsManager;
         serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
+        targetLanguageIsRTL: false,
         sourceCurrencyCode: 'RUB',
         targetCurrencyCode: 'USD',
         serializedFontSubstitutions: '[]',
@@ -45,12 +46,12 @@ function translateSelection(settings) {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
         const mapping = yield getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
         const exceptions = yield parseExceptions(settings.serializedExceptions);
-        yield replaceAllTexts(mapping, exceptions);
+        yield replaceAllTexts(mapping, exceptions, settings.targetLanguageIsRTL);
     });
 }
 function parseDictionary(serializedDictionary) {
     return __awaiter(this, void 0, void 0, function* () {
-        const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field.trim())));
+        const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field).trim()));
         if (table.length === 0) {
             throw { error: 'no header in the dictionary' };
         }
@@ -100,16 +101,23 @@ function parseExceptions(serializedExceptions) {
         });
     });
 }
-function replaceAllTexts(mapping, exceptions) {
+function replaceAllTexts(mapping, exceptions, targetLanguageIsRTL) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        const replacements = yield mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions));
-        const failures = replacements.filter(r => r !== null && 'error' in r);
+        let replacements = (yield mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions))).filter(r => r !== null);
+        let failures = replacements.filter(r => 'error' in r);
+        if (failures.length == 0 && targetLanguageIsRTL) {
+            replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+            failures = replacements.filter(r => 'error' in r);
+        }
         if (failures.length > 0) {
             console.log('Failures:', failures);
             throw { error: 'found some untranslatable nodes', failures };
         }
-        yield mapWithRateLimit(replacements.filter(r => r !== null), 50, replaceText);
+        if (targetLanguageIsRTL) {
+            yield reverseNodeAlignments(textNodes);
+        }
+        yield mapWithRateLimit(replacements, 50, replaceText);
     });
 }
 function computeReplacement(node, mapping, exceptions) {
@@ -123,6 +131,12 @@ function computeReplacement(node, mapping, exceptions) {
         if (!(content in mapping)) {
             return { nodeId: node.id, error: 'No translation for `' + content + '`', suggestions };
         }
+        const result = {
+            node,
+            translation: mapping[content],
+            baseStyle: null,
+            sections: [],
+        };
         const errorLog = [
             'Cannot determine a base style for `' + content + '`',
             'Split into ' + sections.length + ' sections',
@@ -135,12 +149,6 @@ function computeReplacement(node, mapping, exceptions) {
                 styles.push(Object.assign({ humanId: from + '-' + to }, style));
             }
         });
-        const result = {
-            node,
-            translation: mapping[content],
-            baseStyle: null,
-            sections: [],
-        };
         for (let baseStyleCandidate of styles) {
             const prelude = 'Style ' + baseStyleCandidate.humanId + ' is not base: ';
             let ok = true;
@@ -185,7 +193,7 @@ function computeReplacement(node, mapping, exceptions) {
     });
 }
 function normalizeContent(content) {
-    return content.replace(/[\u000A\u2028\u202F\u00A0]/g, ' ').replace(/ +/g, ' ');
+    return content.replace(/[\u000A\u00A0\u2028\u202F]/g, ' ').replace(/ +/g, ' ');
 }
 function keepAsIs(content, exceptions) {
     for (let regex of exceptions) {
@@ -225,11 +233,168 @@ function suggest(node, content, sections, mapping, exceptions) {
     }
     return result;
 }
+function reverseAndWrapReplacement(replacement) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const reversedReplacement = yield reverseReplacement(replacement);
+        if (replacement.node.textAutoResize === 'WIDTH_AND_HEIGHT') {
+            return reversedReplacement;
+        }
+        return wrapReplacement(reversedReplacement);
+    });
+}
+function reverseReplacement(replacement) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { reversedText: reversedTranslation, nonReversibleRanges } = reverseText(replacement.translation);
+        const n = replacement.translation.length;
+        const reversedSections = replacement.sections.map(({ from, to, style }) => ({ from: n - to, to: n - from, style }));
+        const overridingSections = [];
+        for (let range of nonReversibleRanges) {
+            overridingSections.push(Object.assign(Object.assign({}, range), { style: replacement.baseStyle }));
+            for (let { from, to, style } of reversedSections) {
+                if (from < range.to && to > range.from) {
+                    overridingSections.push({
+                        from: range.from + range.to - Math.min(to, range.to),
+                        to: range.from + range.to - Math.max(from, range.from),
+                        style,
+                    });
+                }
+            }
+        }
+        const result = {
+            node: replacement.node,
+            translation: reversedTranslation,
+            baseStyle: replacement.baseStyle,
+            sections: reversedSections.concat(overridingSections),
+        };
+        console.log('Reversed replacement:', result);
+        return result;
+    });
+}
+function reverseText(text) {
+    // TODO: replace with a proper implementation for RTL languages
+    const words = [];
+    const nonReversibleWordStack = [];
+    const nonReversibleRanges = [];
+    const dumpNonReversibleWordStack = (to) => {
+        if (nonReversibleWordStack.length > 0) {
+            const phrase = nonReversibleWordStack.reverse().join(' ');
+            words.push(phrase);
+            nonReversibleRanges.push({ from: to - phrase.length, to });
+            nonReversibleWordStack.length = 0;
+        }
+    };
+    let offset = -1;
+    for (let word of text.split(' ').reverse()) {
+        if (isReversible(word)) {
+            dumpNonReversibleWordStack(offset);
+            words.push(word.split('').reverse().join(''));
+        }
+        else {
+            nonReversibleWordStack.push(word);
+        }
+        offset += word.length + 1;
+    }
+    ;
+    dumpNonReversibleWordStack(offset);
+    return { reversedText: words.join(' '), nonReversibleRanges };
+}
+function isReversible(word) {
+    return /[\u0500-\u0700]|^$/.test(word);
+}
+function wrapReplacement(replacement) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield loadFontsForReplacement(replacement);
+        const bufferNode = replacement.node.clone();
+        bufferNode.opacity = 0;
+        bufferNode.characters = '';
+        bufferNode.textAutoResize = 'HEIGHT';
+        let wrappedTranslationLines = [];
+        let wrappedSections = [];
+        const words = replacement.translation.split(' ');
+        let wordIndex = words.length - 1;
+        let lineStart = replacement.translation.length;
+        let lineEnd = lineStart;
+        let currentLineOffset = 0;
+        while (wordIndex >= 0) {
+            let currentLine = '';
+            let lineBreakStyle = replacement.baseStyle;
+            while (wordIndex >= 0) {
+                const word = words[wordIndex];
+                const insertion = wordIndex > 0 ? (' ' + word) : word;
+                const originalBufferHeight = bufferNode.height;
+                bufferNode.insertCharacters(currentLineOffset, insertion, 'AFTER');
+                lineStart -= insertion.length;
+                for (let { from, to, style } of replacement.sections) {
+                    if (from < lineStart + insertion.length && to > lineStart) {
+                        setSectionStyle(bufferNode, currentLineOffset + Math.max(0, from - lineStart), currentLineOffset + Math.min(to - lineStart, insertion.length), style);
+                    }
+                }
+                const newBufferHeight = bufferNode.height;
+                if (newBufferHeight > originalBufferHeight) {
+                    bufferNode.deleteCharacters(currentLineOffset, currentLineOffset + insertion.length);
+                    lineStart += insertion.length;
+                    if (lineStart == lineEnd) {
+                        bufferNode.remove();
+                        return { nodeId: replacement.node.id, error: 'Word `' + reverseText(insertion).reversedText + '` does not fit into the box', suggestions: [] };
+                    }
+                    const lineBreakOffset = currentLineOffset + currentLine.length;
+                    bufferNode.insertCharacters(lineBreakOffset, '\u2028', 'BEFORE');
+                    for (let { from, to, style } of replacement.sections.reverse()) {
+                        if (from <= lineStart - 1 && lineStart - 1 < to) {
+                            lineBreakStyle = style;
+                            break;
+                        }
+                    }
+                    setSectionStyle(bufferNode, lineBreakOffset, lineBreakOffset + 1, lineBreakStyle);
+                    break;
+                }
+                currentLine = insertion + currentLine;
+                wordIndex--;
+            }
+            wrappedTranslationLines.push(currentLine);
+            for (let { from, to, style } of replacement.sections) {
+                if (from < lineEnd && to > lineStart) {
+                    wrappedSections.push({ from: currentLineOffset + Math.max(0, from - lineStart), to: currentLineOffset + Math.min(to, lineEnd) - lineStart, style });
+                }
+            }
+            if (wordIndex >= 0) {
+                wrappedSections.push({ from: currentLineOffset + currentLine.length, to: currentLineOffset + currentLine.length + 1, style: lineBreakStyle });
+            }
+            lineEnd = lineStart;
+            currentLineOffset += currentLine.length + 1;
+        }
+        const result = {
+            node: replacement.node,
+            translation: wrappedTranslationLines.join('\u2028'),
+            baseStyle: replacement.baseStyle,
+            sections: wrappedSections,
+        };
+        bufferNode.remove();
+        console.log('Wrapped replacement:', result);
+        return result;
+    });
+}
+function reverseNodeAlignments(nodes) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const alignments = nodes.map(node => ({ node, alignment: node.textAlignHorizontal }));
+        yield mapWithRateLimit(alignments, 500, ({ node, alignment }) => __awaiter(this, void 0, void 0, function* () {
+            if (alignment !== 'LEFT' && alignment !== 'RIGHT') {
+                return;
+            }
+            yield loadFontsForNode(node);
+            if (alignment === 'LEFT') {
+                node.textAlignHorizontal = 'RIGHT';
+            }
+            else if (alignment === 'RIGHT') {
+                node.textAlignHorizontal = 'LEFT';
+            }
+        }));
+    });
+}
 function replaceText(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
+        yield loadFontsForReplacement(replacement);
         const { node, translation, baseStyle, sections } = replacement;
-        yield figma.loadFontAsync(baseStyle.fontName);
-        yield Promise.all(sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
         node.characters = translation;
         if (sections.length > 0) {
             setSectionStyle(node, 0, translation.length, baseStyle);
@@ -237,6 +402,19 @@ function replaceText(replacement) {
                 setSectionStyle(node, from, to, style);
             }
         }
+    });
+}
+function loadFontsForReplacement(replacement) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield figma.loadFontAsync(replacement.baseStyle.fontName);
+        yield Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
+    });
+}
+function loadFontsForNode(node) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield Promise.all(Array.from({ length: node.characters.length }, (_, k) => k).map(i => {
+            return figma.loadFontAsync(node.getRangeFontName(i, i + 1));
+        }));
     });
 }
 function convertCurrencyInSelection(settings) {
@@ -392,6 +570,9 @@ function findSelectedTextNodes() {
     });
 }
 function sliceIntoSections(node, from = 0, to = node.characters.length) {
+    if (to == from) {
+        return [];
+    }
     const style = getSectionStyle(node, from, to);
     if (style !== figma.mixed) {
         return [{ from, to, style }];

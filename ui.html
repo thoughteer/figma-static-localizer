@@ -236,6 +236,55 @@ input[type="file"] {
     color: rgba(0, 0, 0, .3);
 }
 
+.checkbox-wrapper {
+    display: -ms-flexbox;
+    display: -webkit-box;
+    display: flex;
+    padding: 1px 16px 1px 0;
+}
+
+.checkbox {
+    height: 0;
+    margin-left: 4px;
+    margin-top: 4px;
+    outline: 0;
+    width: 0;
+}
+
+.checkbox:after {
+    background-color: #fff;
+    border-radius: 2px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    content: '';
+    display: -ms-flexbox;
+    display: -webkit-box;
+    display: flex;
+    height: 28px;
+    line-height: 28px;
+    margin-left: -4px;
+    margin-top: -4px;
+    width: 28px;
+}
+
+.checkbox:checked:after {
+    background-color: rgba(186, 222, 254, 1);
+    border: 5px solid #fff;
+    height: 18px;
+    margin-left: -3px;
+    margin-top: -3px;
+    outline: 1px solid rgba(0, 0, 0, 0.1);
+    width: 18px;
+}
+
+.checkbox:focus:after {
+    border: 1px solid #18a0fb;
+}
+
+.checkbox:checked:focus:after {
+    border: 5px solid #fff;
+    outline: 1px solid #18a0fb;
+}
+
 .button {
     -ms-flex-negative: 0;
     border-radius: 6px;
@@ -284,7 +333,7 @@ input[type="file"] {
     -webkit-box-align: center;
     align-items: center;
     background-color: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     color: rgba(0, 0, 0, .8);
     display: -ms-flexbox;
     display: -webkit-box;
@@ -359,6 +408,7 @@ a {
                 <input class="input" id="sourceLanguage"/>
                 <div class="label">&nbsp;&rarr;&nbsp;</div>
                 <input class="input" id="targetLanguage"/>
+                <div class="checkbox-wrapper"><input class="checkbox" type="checkbox" id="targetLanguageIsRTL" checked="false" title="Check if the target language is RTL"/></div>
                 <div class="label">&nbsp;</div>
                 <button class="button button--primary" id="translate" disabled>Translate</button>
             </div>
@@ -428,7 +478,12 @@ a {
             if (message.type === 'settings') {
                 fields = Object.keys(message.settings);
                 fields.forEach(field => {
-                    document.getElementById(field).value = message.settings[field];
+                    const element = document.getElementById(field);
+                    if (element.hasAttribute('checked')) {
+                        element.checked = message.settings[field];
+                    } else {
+                        element.value = message.settings[field];
+                    }
                 });
                 renderFontSubstitutions();
             } else if (message.type === 'available-fonts') {
@@ -486,7 +541,12 @@ a {
         function getSettings() {
             const result = {};
             fields.forEach(field => {
-                result[field] = document.getElementById(field).value;
+                const element = document.getElementById(field);
+                if (element.hasAttribute('checked')) {
+                    result[field] = element.checked;
+                } else {
+                    result[field] = element.value;
+                }
             });
             return result;
         }
@@ -500,7 +560,9 @@ a {
             reader.onload = e => {
                 console.log(e.target.result);
                 document.getElementById(holderId).value = e.target.result;
-                callback.apply();
+                if (callback !== undefined) {
+                    callback.apply();
+                }
             };
             reader.readAsText(file);
         }
