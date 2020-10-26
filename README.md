@@ -141,7 +141,7 @@ Here is a sample configuration:
 ![](screenshots/font-substitution-before.webp)
 ![](screenshots/font-substitution-after.webp)
 
-You can download configured mappings and then load them latter from a file.
+You can download configured mappings and then load them later from a file.
 
 ## Development
 
