@@ -103,7 +103,7 @@ Here is a sample configuration:
 ```json
 [
     {
-        "code": "RUB",
+        "code": "RU",
         "schema": "123 ₽",
         "digitGroupSeparator": " ",
         "decimalSeparator": "",
@@ -111,7 +111,7 @@ Here is a sample configuration:
         "rate": 1
     },
     {
-        "code": "USD",
+        "code": "US",
         "schema": "$123",
         "digitGroupSeparator": ",",
         "decimalSeparator": ".",
@@ -123,7 +123,7 @@ Here is a sample configuration:
 
 | Parameter | Example | Description |
 | - | - | - |
-| `code` | `USD` | a unique identifier |
+| `code` | `US` | a unique identifier |
 | `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the numeric value) |
 | `digitGroupSeparator` | `,` | used to separate thousands |
 | `decimalSeparator` | `.` | used to separate the fraction |
