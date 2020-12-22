@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Iskander Sitdikov",
+  "license": "MIT",
   "devDependencies": {
     "@figma/plugin-typings": "^1.16.1"
   },

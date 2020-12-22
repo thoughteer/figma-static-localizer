@@ -96,7 +96,7 @@ async function translateSelection(settings: Settings): Promise<void> {
 }
 
 async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
-    const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field).trim()));
+    const table = serializedDictionary.split('\n').map(line => line.split('\t').map(field => field.trim()));
     if (table.length === 0) {
         throw {error: 'no header in the dictionary'};
     }
