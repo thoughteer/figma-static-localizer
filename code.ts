@@ -14,12 +14,12 @@ namespace SettingsManager {
     const DEFAULT: Settings = {
         serializedDictionary: 'RU\tEN\nПривет!\tHello!',
         serializedExceptions: '',
-        serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
+        serializedCurrencies: '[\n\t{\n\t\t"code": "RU",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "US",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
         targetLanguageIsRTL: false,
-        sourceCurrencyCode: 'RUB',
-        targetCurrencyCode: 'USD',
+        sourceCurrencyCode: 'RU',
+        targetCurrencyCode: 'US',
         serializedFontSubstitutions: '[]',
     };
     const FIELDS = Object.keys(DEFAULT);
