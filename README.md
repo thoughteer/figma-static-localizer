@@ -148,7 +148,7 @@ If you want some node to stay reflected after mirroring, do the following:
 - group the clone with the original node
 - lock the resulting group
 
-By altering the clone you can change the appearance of the node after mirroringy in any way you need.
+By altering the clone you can change the appearance of the node after mirroring in any way you need.
 
 ![](screenshots/mirroring-before.webp)
 ![](screenshots/mirroring-after.webp)
