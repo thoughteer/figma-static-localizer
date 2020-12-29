@@ -27,7 +27,7 @@ Note that the plugin will always remember the last used settings.
 
 ### Translation
 
-- Select components to translate
+- Select nodes to translate
 - Invoke this plugin
 - Specify a [dictionary](#dictionary) explicitly or load it from a file
 - Specify [exceptions](#exceptions) explicitly or load them from a file
@@ -88,7 +88,7 @@ Try [font substitution](#font-substitution) in this case.
 
 ### Currency conversion
 
-- Select components to convert
+- Select nodes to convert
 - Invoke this plugin
 - Go to the `Conversion` tab
 - Specify a configuration for known currencies or load it from a file
@@ -130,9 +130,28 @@ Here is a sample configuration:
 | `precision` | `2` | the size of the fraction in digits |
 | `rate` | `0.013` | the exchange rate to some fixed currency |
 
+### Mirroring
+
+- Select nodes to mirror
+- Invoke this plugin
+- Go to the `Mirroring` tab
+- Hit `Mirror`
+
+Use this feature to adapt interfaces for RTL languages.
+
+First, top-level nodes get mirrored horizontally, then all their descendant "atomic" nodes get mirrored back.
+To treat a descendant frame/group as "atomic", simply lock it.
+If you want some node to stay reflected after mirroring, do the following:
+- reframe it to the boundaries of the host frame
+- clone it
+- reflect the clone to the left with respect to the left boundary of the host frame
+- group the clone with the original node
+- lock the resulting group
+By altering the clone you can change the appearance of the node after mirroringy in any way you need.
+
 ### Font substitution
 
-- Select components to transform
+- Select nodes to transform
 - Invoke this plugin
 - Go to the `Fonts` tab
 - Configure a font mapping by picking font pairs and clicking the tick
