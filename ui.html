@@ -372,6 +372,7 @@ a {
     <div class="row">
         <div class="tab tab--active" with="translation">Translation</div>
         <div class="tab" with="conversion">Conversion</div>
+        <div class="tab" with="mirroring">Mirroring</div>
         <div class="tab" with="fonts">Fonts</div>
     </div>
 
@@ -414,7 +415,7 @@ a {
             </div>
         </div>
         <div class="divider"></div>
-        <div id="failures"></div>
+        <div id="translationFailures"></div>
     </div>
 
     <div class="container" id="conversion">
@@ -439,6 +440,16 @@ a {
                 <button class="button button--primary" id="convertCurrency" disabled>Convert currency</button>
             </div>
         </div>
+    </div>
+
+    <div class="container" id="mirroring">
+        <div class="block" style="margin-top: 16px;">
+            <div class="row">
+                <button class="button button--primary" id="mirror">Mirror</button>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div id="mirroringFailures"></div>
     </div>
 
     <div class="container" id="fonts">
@@ -493,13 +504,14 @@ a {
                 selectionFonts = message.selectionFonts;
                 renderFontSelector(document.getElementById('sourceFontSelector'), message.selectionFonts);
                 renderFontSubstitutions();
-            } else if (message.type === 'failures') {
-                const holder = document.getElementById('failures');
-                holder.innerHTML = '';
-                holder.appendChild(renderFailures(message.failures));
+            } else if (message.type === 'translation-failures') {
+                updateTranslationFailures(message.failures);
+            } else if (message.type === 'mirroring-failures') {
+                updateMirroringFailures(message.failures);
             } else if (message.type === 'ready') {
                 document.getElementById('translate').disabled = false;
                 document.getElementById('convertCurrency').disabled = false;
+                document.getElementById('mirror').disabled = false;
                 document.getElementById('substituteFonts').disabled = false;
             }
         };
@@ -525,6 +537,12 @@ a {
             document.getElementById('convertCurrency').disabled = true;
             const settings = getSettings();
             parent.postMessage({ pluginMessage: { type: 'convert-currency', settings } }, '*')
+        };
+
+        document.getElementById('mirror').onclick = () => {
+            document.getElementById('mirror').disabled = true;
+            const settings = getSettings();
+            parent.postMessage({ pluginMessage: { type: 'mirror', settings } }, '*')
         };
 
         document.getElementById('defineFontSubstitution').onclick = defineFontSubstitution;
@@ -567,11 +585,17 @@ a {
             reader.readAsText(file);
         }
 
-        function renderFailures(failures) {
-            const result = document.createElement('div');
-            failures.map(renderError).forEach(element => result.appendChild(element));
-            result.appendChild(renderSuggestions(extractSuggestions(failures)));
-            return result;
+        function updateTranslationFailures(failures) {
+            const holder = document.getElementById('translationFailures');
+            holder.innerHTML = '';
+            failures.map(renderError).forEach(element => holder.appendChild(element));
+            holder.appendChild(renderSuggestions(extractSuggestions(failures)));
+        }
+
+        function updateMirroringFailures(failures) {
+            const holder = document.getElementById('mirroringFailures');
+            holder.innerHTML = '';
+            failures.map(renderError).forEach(element => holder.appendChild(element));
         }
 
         function renderError(failure) {

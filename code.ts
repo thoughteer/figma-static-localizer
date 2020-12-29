@@ -640,6 +640,80 @@ async function substituteFontsInSelection(settings: Settings): Promise<void> {
 }
 
 
+// Mirroring
+
+type MirroringFailure = {
+    nodeId: string;
+    error: string;
+};
+
+async function mirrorSelection(settings: Settings): Promise<void> {
+    const selection = figma.currentPage.selection;
+    const nodesToMirror = selection.concat(findMirrorableNodes(selection));
+
+    const componentIds: Set<string> = new Set();
+    findNodesOfType(selection, 'COMPONENT').forEach(node => {
+        componentIds.add(node.id);
+    });
+
+    const failures: MirroringFailure[] = [];
+    findNodesOfType(selection, 'INSTANCE').forEach((node: InstanceNode) => {
+        const componentId = node.mainComponent.id;
+        if (node.locked) {
+            if (componentIds.has(componentId) && !node.mainComponent.locked) {
+                failures.push({nodeId: node.id, error: 'Locked, but its main component is not'});
+                return;
+            }
+        } else {
+            if (!componentIds.has(componentId)) {
+                failures.push({nodeId: node.id, error: 'Unlocked, but its main component is not selected'});
+                return;
+            }
+        }
+    });
+    if (failures.length > 0) {
+        throw {error: 'found some unmirrorable nodes', failures};
+    }
+
+    await mapWithRateLimit(nodesToMirror, 300, mirrorNode);
+}
+
+function findMirrorableNodes(roots: readonly SceneNode[]): SceneNode[] {
+    const result = [];
+    roots.forEach(root => {
+        if ('findAll' in root && !root.locked) {
+            if (root.type !== 'INSTANCE') {
+                findMirrorableNodes(root.children).forEach(node => result.push(node));
+            }
+        } else {
+            result.push(root);
+        }
+    });
+    return result;
+}
+
+function findNodesOfType(roots: readonly SceneNode[], nodeType: 'COMPONENT'|'INSTANCE'): SceneNode[] {
+    const result = [];
+    roots.forEach(root => {
+        if (root.type === nodeType) {
+            result.push(root);
+        } else if ('findAll' in root && !root.locked) {
+            findNodesOfType(root.children, nodeType).forEach(node => result.push(node));
+        }
+    });
+    return result;
+}
+
+async function mirrorNode(node: SceneNode): Promise<void> {
+    const w = node.width;
+    const t = node.relativeTransform;
+    node.relativeTransform = [
+        [-t[0][0], t[0][1], w * t[0][0] + t[0][2]],
+        [-t[1][0], t[1][1], w * t[1][0] + t[1][2]],
+    ];
+}
+
+
 // Utilities
 
 async function findSelectedTextNodes(): Promise<TextNode[]> {
@@ -789,14 +863,14 @@ figma.ui.onmessage = async message => {
         await translateSelection(message.settings)
             .then(() => {
                 figma.notify('Done');
-                figma.ui.postMessage({type: 'failures', failures: []});
+                figma.ui.postMessage({type: 'translation-failures', failures: []});
                 figma.ui.postMessage({type: 'ready'});
             })
             .catch(reason => {
                 if ('error' in reason) {
-                    figma.notify('Localization failed: ' + reason.error);
+                    figma.notify('Translation failed: ' + reason.error);
                     if ('failures' in reason) {
-                        figma.ui.postMessage({type: 'failures', failures: reason.failures});
+                        figma.ui.postMessage({type: 'translation-failures', failures: reason.failures});
                     }
                 } else {
                     figma.notify(reason.toString());
@@ -813,6 +887,25 @@ figma.ui.onmessage = async message => {
             .catch(reason => {
                 if ('error' in reason) {
                     figma.notify('Currency conversion failed: ' + reason.error);
+                } else {
+                    figma.notify(reason.toString());
+                }
+                figma.ui.postMessage({type: 'ready'});
+            });
+    } else if (message.type === 'mirror') {
+        await SettingsManager.save(message.settings);
+        await mirrorSelection(message.settings)
+            .then(() => {
+                figma.notify('Done');
+                figma.ui.postMessage({type: 'mirroring-failures', failures: []});
+                figma.ui.postMessage({type: 'ready'});
+            })
+            .catch(reason => {
+                if ('error' in reason) {
+                    figma.notify('Mirroring failed: ' + reason.error);
+                    if ('failures' in reason) {
+                        figma.ui.postMessage({type: 'mirroring-failures', failures: reason.failures});
+                    }
                 } else {
                     figma.notify(reason.toString());
                 }
