@@ -5,6 +5,7 @@ A Figma plugin that allows you to localize your content using a static dictionar
 Unlike many other localization plugins, it
 - gracefully handles mixed text formatting
 - correctly renders RTL texts
+- can mirror interfaces for RTL languages
 - can perform currency conversion
 - can perform font substitution
 
@@ -21,6 +22,7 @@ in Figma Desktop, and select the downloaded `manifest.json` file.
 The plugin includes several modules:
 - [Translation](#translation)
 - [Currency conversion](#currency-conversion)
+- [Mirroring](#mirroring)
 - [Font substitution](#font-substitution)
 
 Note that the plugin will always remember the last used settings.
