@@ -12,12 +12,12 @@ var SettingsManager;
     const DEFAULT = {
         serializedDictionary: 'RU\tEN\nПривет!\tHello!',
         serializedExceptions: '',
-        serializedCurrencies: '[\n\t{\n\t\t"code": "RUB",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "USD",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
+        serializedCurrencies: '[\n\t{\n\t\t"code": "RU",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "US",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
         sourceLanguage: 'RU',
         targetLanguage: 'EN',
         targetLanguageIsRTL: false,
-        sourceCurrencyCode: 'RUB',
-        targetCurrencyCode: 'USD',
+        sourceCurrencyCode: 'RU',
+        targetCurrencyCode: 'US',
         serializedFontSubstitutions: '[]',
     };
     const FIELDS = Object.keys(DEFAULT);
@@ -51,7 +51,7 @@ function translateSelection(settings) {
 }
 function parseDictionary(serializedDictionary) {
     return __awaiter(this, void 0, void 0, function* () {
-        const table = encodeURI(serializedDictionary).split('%0A').map(line => line.split('%09').map(field => decodeURI(field).trim()));
+        const table = serializedDictionary.split('\n').map(line => line.split('\t').map(field => field.trim()));
         if (table.length === 0) {
             throw { error: 'no header in the dictionary' };
         }
@@ -562,6 +562,72 @@ function substituteFontsInSelection(settings) {
         }));
     });
 }
+function mirrorSelection(settings) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const selection = figma.currentPage.selection;
+        const nodesToMirror = selection.concat(findMirrorableNodes(selection));
+        const componentIds = new Set();
+        findNodesOfType(selection, 'COMPONENT').forEach(node => {
+            componentIds.add(node.id);
+        });
+        const failures = [];
+        findNodesOfType(selection, 'INSTANCE').forEach((node) => {
+            const componentId = node.mainComponent.id;
+            if (node.locked) {
+                if (componentIds.has(componentId) && !node.mainComponent.locked) {
+                    failures.push({ nodeId: node.id, error: 'Locked, but its main component is not' });
+                    return;
+                }
+            }
+            else {
+                if (!componentIds.has(componentId)) {
+                    failures.push({ nodeId: node.id, error: 'Unlocked, but its main component is not selected' });
+                    return;
+                }
+            }
+        });
+        if (failures.length > 0) {
+            throw { error: 'found some unmirrorable nodes', failures };
+        }
+        yield mapWithRateLimit(nodesToMirror, 300, mirrorNode);
+    });
+}
+function findMirrorableNodes(roots) {
+    const result = [];
+    roots.forEach(root => {
+        if ('findAll' in root && !root.locked) {
+            if (root.type !== 'INSTANCE') {
+                findMirrorableNodes(root.children).forEach(node => result.push(node));
+            }
+        }
+        else {
+            result.push(root);
+        }
+    });
+    return result;
+}
+function findNodesOfType(roots, nodeType) {
+    const result = [];
+    roots.forEach(root => {
+        if (root.type === nodeType) {
+            result.push(root);
+        }
+        else if ('findAll' in root && !root.locked) {
+            findNodesOfType(root.children, nodeType).forEach(node => result.push(node));
+        }
+    });
+    return result;
+}
+function mirrorNode(node) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const w = node.width;
+        const t = node.relativeTransform;
+        node.relativeTransform = [
+            [-t[0][0], t[0][1], w * t[0][0] + t[0][2]],
+            [-t[1][0], t[1][1], w * t[1][0] + t[1][2]],
+        ];
+    });
+}
 // Utilities
 function findSelectedTextNodes() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -701,14 +767,14 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         yield translateSelection(message.settings)
             .then(() => {
             figma.notify('Done');
-            figma.ui.postMessage({ type: 'failures', failures: [] });
+            figma.ui.postMessage({ type: 'translation-failures', failures: [] });
             figma.ui.postMessage({ type: 'ready' });
         })
             .catch(reason => {
             if ('error' in reason) {
-                figma.notify('Localization failed: ' + reason.error);
+                figma.notify('Translation failed: ' + reason.error);
                 if ('failures' in reason) {
-                    figma.ui.postMessage({ type: 'failures', failures: reason.failures });
+                    figma.ui.postMessage({ type: 'translation-failures', failures: reason.failures });
                 }
             }
             else {
@@ -727,6 +793,27 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             .catch(reason => {
             if ('error' in reason) {
                 figma.notify('Currency conversion failed: ' + reason.error);
+            }
+            else {
+                figma.notify(reason.toString());
+            }
+            figma.ui.postMessage({ type: 'ready' });
+        });
+    }
+    else if (message.type === 'mirror') {
+        yield SettingsManager.save(message.settings);
+        yield mirrorSelection(message.settings)
+            .then(() => {
+            figma.notify('Done');
+            figma.ui.postMessage({ type: 'mirroring-failures', failures: [] });
+            figma.ui.postMessage({ type: 'ready' });
+        })
+            .catch(reason => {
+            if ('error' in reason) {
+                figma.notify('Mirroring failed: ' + reason.error);
+                if ('failures' in reason) {
+                    figma.ui.postMessage({ type: 'mirroring-failures', failures: reason.failures });
+                }
             }
             else {
                 figma.notify(reason.toString());
