@@ -11,11 +11,7 @@ Unlike many other localization plugins, it
 
 ## Installation
 
-To install the plugin locally, download this repo, then go to
-
-    Plugins > Development > Create new plugin
-
-in Figma Desktop, and select the downloaded `manifest.json` file.
+[Install](https://www.figma.com/community/plugin/876934931929982678/Static-Localizer) this plugin from Figma Community.
 
 ## Usage
 
