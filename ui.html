@@ -449,6 +449,13 @@ a {
             </div>
         </div>
         <div class="divider"></div>
+        <div class="block">
+            <div class="row">
+                <button class="button button--secondary" id="clip">Clip</button>
+                <div class="label">Clip the node to the boundaries of the parent frame</div>
+            </div>
+        </div>
+        <div class="divider"></div>
         <div id="mirroringFailures"></div>
     </div>
 
@@ -512,6 +519,7 @@ a {
                 document.getElementById('translate').disabled = false;
                 document.getElementById('convertCurrency').disabled = false;
                 document.getElementById('mirror').disabled = false;
+                document.getElementById('clip').disabled = false;
                 document.getElementById('substituteFonts').disabled = false;
             }
         };
@@ -543,6 +551,12 @@ a {
             document.getElementById('mirror').disabled = true;
             const settings = getSettings();
             parent.postMessage({ pluginMessage: { type: 'mirror', settings } }, '*')
+        };
+
+        document.getElementById('clip').onclick = () => {
+            document.getElementById('clip').disabled = true;
+            const settings = getSettings();
+            parent.postMessage({ pluginMessage: { type: 'clip', settings } }, '*')
         };
 
         document.getElementById('defineFontSubstitution').onclick = defineFontSubstitution;

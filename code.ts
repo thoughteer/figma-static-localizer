@@ -545,37 +545,66 @@ async function replaceCurrencyInAllTexts(sourceCurrency: Currency, targetCurrenc
     const escapedSchema = escapeForRegExp(sourceCurrency.schema);
     const escapedDigitGroupSeparator = escapeForRegExp(sourceCurrency.digitGroupSeparator);
     const escapedDecimalSeparator = escapeForRegExp(sourceCurrency.decimalSeparator);
-    const sourceValueRegExpString = '((?:[0-9]|' + escapedDigitGroupSeparator + ')+' + escapedDecimalSeparator + '[0-9]{' + sourceCurrency.precision + '})';
-    const sourceRegExp = new RegExp('^' + escapedSchema.replace('123', sourceValueRegExpString) + '$');
-    console.log('Source regular expression:', sourceRegExp.toString());
+    const sourceValueRegExpString = '((?:\\d|\\d' + escapedDigitGroupSeparator + '\\d)+' + escapedDecimalSeparator + '\\d{' + sourceCurrency.precision + '})';
+    const sourceRegExpString = '\\b' + escapedSchema.replace('123', sourceValueRegExpString + '(?:(\\s*[-\u2010-\u2015]\\s*)' + sourceValueRegExpString + ')?');
+    const sourceRegExp = new RegExp(sourceRegExpString, 'g');
+    console.log('Source regular expression:', sourceRegExpString);
 
     await mapWithRateLimit(textNodes, 250, async node => {
         const content = node.characters;
-        const match = content.match(sourceRegExp);
-        if (match !== null && match[1] !== null && match[1] !== undefined) {
-            const style = getSectionStyle(node, 0, node.characters.length);
+        const regexp = new RegExp(sourceRegExp);
+        const conversions = [];
+        while (true) {
+            const match = regexp.exec(content);
+            if (match === null) {
+                break;
+            }
+
+            const style = getSectionStyle(node, match.index, match.index + match[0].length);
             if (style === figma.mixed) {
-                throw {error: 'node `' + content + '` has a mixed style'};
+                throw {error: 'node `' + content + '` has a mixed-styled money value'};
             }
-
-            let sourceValueString = match[1].replace(new RegExp(escapedDigitGroupSeparator, 'g'), '');
-            if (sourceCurrency.decimalSeparator !== '') {
-                sourceValueString = sourceValueString.replace(sourceCurrency.decimalSeparator, '.');
-            }
-            const sourceValue = parseFloat(sourceValueString);
-            const targetValue = sourceValue * targetCurrency.rate / sourceCurrency.rate;
-            const truncatedTargetValue = Math.trunc(targetValue);
-            const targetValueFraction = targetValue - truncatedTargetValue;
-            const targetValueString = (
-                truncatedTargetValue.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,').replace(/,/g, targetCurrency.digitGroupSeparator) +
-                targetCurrency.decimalSeparator +
-                targetValueFraction.toFixed(targetCurrency.precision).slice(2)
-            );
-
             await figma.loadFontAsync(style.fontName);
-            node.characters = targetCurrency.schema.replace('123', targetValueString);
+
+            let targetValueString = convertMoneyValue(match[1], sourceCurrency, targetCurrency);
+            if (match[3] !== null && match[3] !== undefined) {
+                targetValueString += match[2] + convertMoneyValue(match[3], sourceCurrency, targetCurrency);
+            }
+
+            conversions.push({
+                from: match.index,
+                to: match.index + match[0].length,
+                target: targetCurrency.schema.replace('123', targetValueString),
+            });
         }
+
+        conversions.reverse().forEach(({from, to, target}) => {
+            node.insertCharacters(to, target, 'BEFORE');
+            node.deleteCharacters(from, to);
+        });
     });
+}
+
+function convertMoneyValue(value: string, sourceCurrency: Currency, targetCurrency: Currency): string {
+    return renderMoneyValue(extractMoneyValue(value, sourceCurrency) * targetCurrency.rate / sourceCurrency.rate, targetCurrency);
+}
+
+function extractMoneyValue(value: string, currency: Currency): number {
+    let resultAsString = value.replace(new RegExp(escapeForRegExp(currency.digitGroupSeparator), 'g'), '');
+    if (currency.decimalSeparator !== '') {
+        resultAsString = resultAsString.replace(currency.decimalSeparator, '.');
+    }
+    return parseFloat(resultAsString);
+}
+
+function renderMoneyValue(value: number, currency: Currency): string {
+    const truncatedValue = Math.trunc(value);
+    const valueFraction = value - truncatedValue;
+    return (
+        truncatedValue.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,').replace(/,/g, currency.digitGroupSeparator) +
+        currency.decimalSeparator +
+        valueFraction.toFixed(currency.precision).slice(2)
+    );
 }
 
 function escapeForRegExp(s: string): string {
@@ -711,6 +740,27 @@ async function mirrorNode(node: SceneNode): Promise<void> {
         [-t[0][0], t[0][1], w * t[0][0] + t[0][2]],
         [-t[1][0], t[1][1], w * t[1][0] + t[1][2]],
     ];
+}
+
+async function clipSelection(settings: Settings): Promise<void> {
+    if (figma.currentPage.selection.length > 1) {
+        throw {error: 'more than 1 node selected (group your nodes first)'}
+    }
+    const selectedNode = figma.currentPage.selection[0];
+    if (selectedNode.parent == null) {
+        throw {error: 'the selected node has no parent'}
+    }
+    if (!('width' in selectedNode.parent)) {
+        throw {error: 'the parent node size is undefined'}
+    }
+    const host = selectedNode.parent;
+    const nodeIndex = host.children.indexOf(selectedNode);
+    const clipper = figma.createFrame();
+    clipper.backgrounds = [];
+    clipper.resizeWithoutConstraints(host.width, host.height);
+    clipper.clipsContent = true;
+    clipper.appendChild(selectedNode);
+    host.insertChild(nodeIndex, clipper);
 }
 
 
@@ -911,6 +961,22 @@ figma.ui.onmessage = async message => {
                 }
                 figma.ui.postMessage({type: 'ready'});
             });
+    } else if (message.type === 'clip') {
+        await SettingsManager.save(message.settings);
+        await clipSelection(message.settings)
+            .then(() => {
+                figma.notify('Done');
+                figma.ui.postMessage({type: 'mirroring-failures', failures: []});
+                figma.ui.postMessage({type: 'ready'});
+            })
+            .catch(reason => {
+                if ('error' in reason) {
+                    figma.notify('Clipping failed: ' + reason.error);
+                } else {
+                    figma.notify(reason.toString());
+                }
+                figma.ui.postMessage({type: 'ready'});
+        });
     } else if (message.type === 'substitute-fonts') {
         await SettingsManager.save(message.settings);
         await substituteFontsInSelection(message.settings)

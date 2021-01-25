@@ -93,6 +93,8 @@ Try [font substitution](#font-substitution) in this case.
 - Specify source and target currency codes
 - Hit `Convert currency`
 
+It supports numeric ranges, e.g. `12.3 - 456.7`.
+
 ![](screenshots/currency-conversion-before.webp)
 ![](screenshots/currency-conversion-after.webp)
 
@@ -122,7 +124,7 @@ Here is a sample configuration:
 | Parameter | Example | Description |
 | - | - | - |
 | `code` | `US` | a unique identifier |
-| `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the numeric value) |
+| `schema` | `$123` | defines the appearance of a money value (`123` denotes the location of the numeric value/range) |
 | `digitGroupSeparator` | `,` | used to separate thousands |
 | `decimalSeparator` | `.` | used to separate the fraction |
 | `precision` | `2` | the size of the fraction in digits |
