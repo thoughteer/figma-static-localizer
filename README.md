@@ -173,3 +173,47 @@ Just follow this guide: https://www.figma.com/plugin-docs/setup/.
 # License
 
 **Static Localizer** is released under the MIT license.
+
+# FAQ
+
+#### Can I translate *from* an RTL language?
+
+No, currently this option is not supported. Moreover, it doesn't seem feasible due to error-prone word wrapping.
+
+#### How do I edit the dictionary?
+
+The dictionary field is not meant to be edited in-place but rather used as an upload point.
+Hence there is no download button.
+For now, we suggest you to create a table in, say, Google Sheets, and then export it as a TSV.
+
+#### I got an error but no text got translated at all. Why?
+
+The plugin makes sure the translation can be correctly performed first.
+So, if it finds any problems, no actual transformation is applied to the document.
+
+#### How do I translate back quickly?
+
+We recommend to use `Cmd+Z` to revert changes made by the plugin.
+As simple as that.
+One plugin invocation counts as a single action in Figma, which makes such rollbacks pretty safe and reliable.
+
+#### Why a text node containing spaces only cannot be translated?
+
+We trim spaces when we load a dictionary, so your phrase consisting of spaces only will degenerate into a blank line.
+Besides, we pre-process text node contents before translation: join lines and collapse repeating spaces.
+This may also cause deviations from what is in the dictionary.
+
+#### How do I treat multi-line texts?
+
+If you have line breaks within a sentence that you'd like to preserve - there is simply no way to make it work universally.
+In other languages the order of words may change significantly.
+But if you have separate paragraph, we highly recommend you to split it into a couple of independent text nodes and group them into an auto-layout.
+First, this approach will give you more flexibility in general.
+And second, you will be able to translate each paragraph as a separate line of text.
+
+#### What if some phrase has different translations depending on the context?
+
+Currently, the solution is cumbersome.
+You can put several [word joiners](https://unicode-table.com/en/#2060) after the phrase in both the document and the dictionary.
+These characters are hidden, so you'll end up with a phrase that differs from the original one, but looks exactly the same.
+Just add a different translation for the new phrase.
