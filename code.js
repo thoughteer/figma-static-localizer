@@ -690,16 +690,26 @@ function findSelectedTextNodes() {
     });
 }
 function sliceIntoSections(node, from = 0, to = node.characters.length) {
-    if (to == from) {
+    if (to === from) {
         return [];
     }
     const style = getSectionStyle(node, from, to);
     if (style !== figma.mixed) {
         return [{ from, to, style }];
     }
+    if (to - from === 1) {
+        console.log('WARNING! Unexpected problem at node `' + node.characters + '`: a single character has "mixed" style');
+        return []; // TODO: fix the problem
+    }
     const center = Math.floor((from + to) / 2);
     const leftSections = sliceIntoSections(node, from, center);
+    if (leftSections.length === 0) {
+        return []; // TODO: fix the problem
+    }
     const rightSections = sliceIntoSections(node, center, to);
+    if (rightSections.length === 0) {
+        return []; // TODO: fix the problem
+    }
     const lastLeftSection = leftSections[leftSections.length - 1];
     const firstRightSection = rightSections[0];
     if (lastLeftSection.style.id === firstRightSection.style.id) {
