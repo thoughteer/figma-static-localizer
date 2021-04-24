@@ -290,7 +290,7 @@ function reverseText(text) {
     for (let word of text.split(' ').reverse()) {
         if (isReversible(word)) {
             dumpNonReversibleWordStack(offset);
-            words.push(word.split('').reverse().join(''));
+            words.push(reverseSpecialSymbols(word.split('').reverse().join('')));
         }
         else {
             nonReversibleWordStack.push(word);
@@ -303,6 +303,14 @@ function reverseText(text) {
 }
 function isReversible(word) {
     return /[\u0500-\u0700]|^$/.test(word);
+}
+function reverseSpecialSymbols(word) {
+    const reversalTable = new Map([
+        ['(', ')'], [')', '('],
+        ['[', ']'], [']', '['],
+        ['{', '}'], ['}', '{'],
+    ]);
+    return word.split('').map(c => reversalTable.get(c) || c).join('');
 }
 function wrapReplacement(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
