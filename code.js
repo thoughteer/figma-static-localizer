@@ -10,22 +10,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 var SettingsManager;
 (function (SettingsManager) {
     const DEFAULT = {
-        serializedDictionary: 'RU\tEN\nПривет!\tHello!',
-        serializedExceptions: '',
-        serializedCurrencies: '[\n\t{\n\t\t"code": "RU",\n\t\t"schema": "123 \\u20bd",\n\t\t"digitGroupSeparator": " ",\n\t\t"decimalSeparator": "",\n\t\t"precision": 0,\n\t\t"rate": 1},\n\t{\n\t\t"code": "US",\n\t\t"schema": "$123",\n\t\t"digitGroupSeparator": ",",\n\t\t"decimalSeparator": ".",\n\t\t"precision": 2,\n\t\t"rate": 0.013\n\t}\n]',
-        sourceLanguage: 'RU',
-        targetLanguage: 'EN',
+        serializedDictionary: "RU\tEN\nПривет!\tHello!",
+        serializedExceptions: "",
+        sourceLanguage: "RU",
+        targetLanguage: "EN",
         targetLanguageIsRTL: false,
-        sourceCurrencyCode: 'RU',
-        targetCurrencyCode: 'US',
-        serializedFontSubstitutions: '[]',
     };
     const FIELDS = Object.keys(DEFAULT);
-    const CLIENT_STORAGE_PREFIX = 'StaticLocalizer.';
+    const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
     function load() {
         return __awaiter(this, void 0, void 0, function* () {
             const result = {};
-            const promises = FIELDS.map(field => figma.clientStorage.getAsync(CLIENT_STORAGE_PREFIX + field).then(value => ({ field, value: value === undefined ? DEFAULT[field] : value })));
+            const promises = FIELDS.map((field) => figma.clientStorage
+                .getAsync(CLIENT_STORAGE_PREFIX + field)
+                .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value })));
             (yield Promise.all(promises)).forEach(({ field, value }) => {
                 result[field] = value;
             });
@@ -35,12 +33,11 @@ var SettingsManager;
     SettingsManager.load = load;
     function save(settings) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield Promise.all(FIELDS.map(field => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
+            yield Promise.all(FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
         });
     }
     SettingsManager.save = save;
 })(SettingsManager || (SettingsManager = {}));
-;
 function translateSelection(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
@@ -51,17 +48,19 @@ function translateSelection(settings) {
 }
 function parseDictionary(serializedDictionary) {
     return __awaiter(this, void 0, void 0, function* () {
-        const table = serializedDictionary.split('\n').map(line => line.split('\t').map(field => field.trim()));
+        const table = serializedDictionary.split("\n").map((line) => line.split("\t").map((field) => field.trim()));
         if (table.length === 0) {
-            throw { error: 'no header in the dictionary' };
+            throw { error: "no header in the dictionary" };
         }
         const header = table[0];
         const expectedColumnCount = header.length;
         const rows = table.slice(1, table.length);
-        console.log('Dictionary:', { header, rows });
+        console.log("Dictionary:", { header, rows });
         rows.forEach((row, index) => {
             if (row.length != expectedColumnCount) {
-                throw { error: 'row ' + (index + 2) + ' of the dictionary has ' + row.length + ' (not ' + expectedColumnCount + ') columns' };
+                throw {
+                    error: "row " + (index + 2) + " of the dictionary has " + row.length + " (not " + expectedColumnCount + ") columns",
+                };
             }
         });
         return { header, rows };
@@ -71,35 +70,38 @@ function getMapping(dictionary, sourceLanguage, targetLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
         const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
         if (sourceColumnIndex == -1) {
-            throw { error: sourceLanguage + ' not listed in [' + dictionary.header + ']' };
+            throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
         }
         const targetColumnIndex = dictionary.header.indexOf(targetLanguage);
         if (targetColumnIndex == -1) {
-            throw { error: targetLanguage + ' not listed in [' + dictionary.header + ']' };
+            throw { error: targetLanguage + " not listed in [" + dictionary.header + "]" };
         }
         const result = {};
-        dictionary.rows.forEach(row => {
+        dictionary.rows.forEach((row) => {
             const sourceString = row[sourceColumnIndex];
             const targetString = row[targetColumnIndex];
-            if (targetString.trim() !== '') {
+            if (targetString.trim() !== "") {
                 if (sourceString in result) {
-                    throw { error: 'multiple translations for `' + sourceString + '` in the dictionary' };
+                    throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
                 }
                 result[sourceString] = targetString;
             }
         });
-        console.log('Extracted mapping:', result);
+        console.log("Extracted mapping:", result);
         return result;
     });
 }
 function parseExceptions(serializedExceptions) {
     return __awaiter(this, void 0, void 0, function* () {
-        return serializedExceptions.split('\n').filter(pattern => pattern !== '').map(pattern => {
+        return serializedExceptions
+            .split("\n")
+            .filter((pattern) => pattern !== "")
+            .map((pattern) => {
             try {
                 return new RegExp(pattern);
             }
             catch (_) {
-                throw { error: 'invalid regular expression `' + pattern + '`' };
+                throw { error: "invalid regular expression `" + pattern + "`" };
             }
         });
     });
@@ -107,15 +109,15 @@ function parseExceptions(serializedExceptions) {
 function replaceAllTexts(mapping, exceptions, targetLanguageIsRTL) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        let replacements = (yield mapWithRateLimit(textNodes, 200, node => computeReplacement(node, mapping, exceptions))).filter(r => r !== null);
-        let failures = replacements.filter(r => 'error' in r);
+        let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
+        let failures = replacements.filter((r) => "error" in r);
         if (failures.length == 0 && targetLanguageIsRTL) {
             replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-            failures = replacements.filter(r => 'error' in r);
+            failures = replacements.filter((r) => "error" in r);
         }
         if (failures.length > 0) {
-            console.log('Failures:', failures);
-            throw { error: 'found some untranslatable nodes', failures };
+            console.log("Failures:", failures);
+            throw { error: "found some untranslatable nodes", failures };
         }
         if (targetLanguageIsRTL) {
             yield reverseNodeAlignments(textNodes);
@@ -132,7 +134,7 @@ function computeReplacement(node, mapping, exceptions) {
         const sections = sliceIntoSections(node);
         const suggestions = suggest(node, content, sections, mapping, exceptions);
         if (!(content in mapping)) {
-            return { nodeId: node.id, error: 'No translation for `' + content + '`', suggestions };
+            return { nodeId: node.id, error: "No translation for `" + content + "`", suggestions };
         }
         const result = {
             node,
@@ -141,19 +143,19 @@ function computeReplacement(node, mapping, exceptions) {
             sections: [],
         };
         const errorLog = [
-            'Cannot determine a base style for `' + content + '`',
-            'Split into ' + sections.length + ' sections',
+            "Cannot determine a base style for `" + content + "`",
+            "Split into " + sections.length + " sections",
         ];
         const styles = [];
         const styleIds = new Set();
         sections.forEach(({ from, to, style }) => {
             if (!styleIds.has(style.id)) {
                 styleIds.add(style.id);
-                styles.push(Object.assign({ humanId: from + '-' + to }, style));
+                styles.push(Object.assign({ humanId: from + "-" + to }, style));
             }
         });
         for (let baseStyleCandidate of styles) {
-            const prelude = 'Style ' + baseStyleCandidate.humanId + ' is not base: ';
+            const prelude = "Style " + baseStyleCandidate.humanId + " is not base: ";
             let ok = true;
             result.sections.length = 0;
             for (let { from, to, style } of sections) {
@@ -166,18 +168,18 @@ function computeReplacement(node, mapping, exceptions) {
                     sectionTranslation = mapping[sectionContent];
                 }
                 else if (!keepAsIs(sectionContent, exceptions)) {
-                    errorLog.push(prelude + 'no translation for `' + sectionContent + '`');
+                    errorLog.push(prelude + "no translation for `" + sectionContent + "`");
                     ok = false;
                     break;
                 }
                 const index = result.translation.indexOf(sectionTranslation);
                 if (index == -1) {
-                    errorLog.push(prelude + '`' + sectionTranslation + '` not found within `' + result.translation + '`');
+                    errorLog.push(prelude + "`" + sectionTranslation + "` not found within `" + result.translation + "`");
                     ok = false;
                     break;
                 }
                 if (result.translation.indexOf(sectionTranslation, index + 1) != -1) {
-                    errorLog.push(prelude + 'found multiple occurrencies of `' + sectionTranslation + '` within `' + result.translation + '`');
+                    errorLog.push(prelude + "found multiple occurrencies of `" + sectionTranslation + "` within `" + result.translation + "`");
                     ok = false;
                     break;
                 }
@@ -189,14 +191,14 @@ function computeReplacement(node, mapping, exceptions) {
             }
         }
         if (result.baseStyle === null) {
-            return { nodeId: node.id, error: errorLog.join('. '), suggestions };
+            return { nodeId: node.id, error: errorLog.join(". "), suggestions };
         }
-        console.log('Replacement:', result);
+        console.log("Replacement:", result);
         return result;
     });
 }
 function normalizeContent(content) {
-    return content.replace(/[\u000A\u00A0\u2028\u202F]/g, ' ').replace(/ +/g, ' ');
+    return content.replace(/[\u000A\u00A0\u2028\u202F]/g, " ").replace(/ +/g, " ");
 }
 function keepAsIs(content, exceptions) {
     for (let regex of exceptions) {
@@ -206,7 +208,6 @@ function keepAsIs(content, exceptions) {
     }
     return false;
 }
-;
 function suggest(node, content, sections, mapping, exceptions) {
     const n = content.length;
     const styleScores = new Map();
@@ -239,7 +240,7 @@ function suggest(node, content, sections, mapping, exceptions) {
 function reverseAndWrapReplacement(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         const reversedReplacement = yield reverseReplacement(replacement);
-        if (replacement.node.textAutoResize === 'WIDTH_AND_HEIGHT') {
+        if (replacement.node.textAutoResize === "WIDTH_AND_HEIGHT") {
             return reversedReplacement;
         }
         return wrapReplacement(reversedReplacement);
@@ -269,7 +270,7 @@ function reverseReplacement(replacement) {
             baseStyle: replacement.baseStyle,
             sections: reversedSections.concat(overridingSections),
         };
-        console.log('Reversed replacement:', result);
+        console.log("Reversed replacement:", result);
         return result;
     });
 }
@@ -280,60 +281,65 @@ function reverseText(text) {
     const nonReversibleRanges = [];
     const dumpNonReversibleWordStack = (to) => {
         if (nonReversibleWordStack.length > 0) {
-            const phrase = nonReversibleWordStack.reverse().join(' ');
+            const phrase = nonReversibleWordStack.reverse().join(" ");
             words.push(phrase);
             nonReversibleRanges.push({ from: to - phrase.length, to });
             nonReversibleWordStack.length = 0;
         }
     };
     let offset = -1;
-    for (let word of text.split(' ').reverse()) {
+    for (let word of text.split(" ").reverse()) {
         if (isReversible(word)) {
             dumpNonReversibleWordStack(offset);
-            words.push(reverseSpecialSymbols(word.split('').reverse().join('')));
+            words.push(reverseSpecialSymbols(word.split("").reverse().join("")));
         }
         else {
             nonReversibleWordStack.push(word);
         }
         offset += word.length + 1;
     }
-    ;
     dumpNonReversibleWordStack(offset);
-    return { reversedText: words.join(' '), nonReversibleRanges };
+    return { reversedText: words.join(" "), nonReversibleRanges };
 }
 function isReversible(word) {
     return /[\u0500-\u0700]|^$/.test(word);
 }
 function reverseSpecialSymbols(word) {
     const reversalTable = new Map([
-        ['(', ')'], [')', '('],
-        ['[', ']'], [']', '['],
-        ['{', '}'], ['}', '{'],
+        ["(", ")"],
+        [")", "("],
+        ["[", "]"],
+        ["]", "["],
+        ["{", "}"],
+        ["}", "{"],
     ]);
-    return word.split('').map(c => reversalTable.get(c) || c).join('');
+    return word
+        .split("")
+        .map((c) => reversalTable.get(c) || c)
+        .join("");
 }
 function wrapReplacement(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         yield loadFontsForReplacement(replacement);
         const bufferNode = replacement.node.clone();
         bufferNode.opacity = 0;
-        bufferNode.characters = '';
-        bufferNode.textAutoResize = 'HEIGHT';
+        bufferNode.characters = "";
+        bufferNode.textAutoResize = "HEIGHT";
         let wrappedTranslationLines = [];
         let wrappedSections = [];
-        const words = replacement.translation.split(' ');
+        const words = replacement.translation.split(" ");
         let wordIndex = words.length - 1;
         let lineStart = replacement.translation.length;
         let lineEnd = lineStart;
         let currentLineOffset = 0;
         while (wordIndex >= 0) {
-            let currentLine = '';
+            let currentLine = "";
             let lineBreakStyle = replacement.baseStyle;
             while (wordIndex >= 0) {
                 const word = words[wordIndex];
-                const insertion = wordIndex > 0 ? (' ' + word) : word;
+                const insertion = wordIndex > 0 ? " " + word : word;
                 const originalBufferHeight = bufferNode.height;
-                bufferNode.insertCharacters(currentLineOffset, insertion, 'AFTER');
+                bufferNode.insertCharacters(currentLineOffset, insertion, "AFTER");
                 lineStart -= insertion.length;
                 for (let { from, to, style } of replacement.sections) {
                     if (from < lineStart + insertion.length && to > lineStart) {
@@ -346,10 +352,14 @@ function wrapReplacement(replacement) {
                     lineStart += insertion.length;
                     if (lineStart == lineEnd) {
                         bufferNode.remove();
-                        return { nodeId: replacement.node.id, error: 'Word `' + reverseText(insertion).reversedText + '` does not fit into the box', suggestions: [] };
+                        return {
+                            nodeId: replacement.node.id,
+                            error: "Word `" + reverseText(insertion).reversedText + "` does not fit into the box",
+                            suggestions: [],
+                        };
                     }
                     const lineBreakOffset = currentLineOffset + currentLine.length;
-                    bufferNode.insertCharacters(lineBreakOffset, '\u2028', 'BEFORE');
+                    bufferNode.insertCharacters(lineBreakOffset, "\u2028", "BEFORE");
                     for (let { from, to, style } of replacement.sections.reverse()) {
                         if (from <= lineStart - 1 && lineStart - 1 < to) {
                             lineBreakStyle = style;
@@ -365,39 +375,47 @@ function wrapReplacement(replacement) {
             wrappedTranslationLines.push(currentLine);
             for (let { from, to, style } of replacement.sections) {
                 if (from < lineEnd && to > lineStart) {
-                    wrappedSections.push({ from: currentLineOffset + Math.max(0, from - lineStart), to: currentLineOffset + Math.min(to, lineEnd) - lineStart, style });
+                    wrappedSections.push({
+                        from: currentLineOffset + Math.max(0, from - lineStart),
+                        to: currentLineOffset + Math.min(to, lineEnd) - lineStart,
+                        style,
+                    });
                 }
             }
             if (wordIndex >= 0) {
-                wrappedSections.push({ from: currentLineOffset + currentLine.length, to: currentLineOffset + currentLine.length + 1, style: lineBreakStyle });
+                wrappedSections.push({
+                    from: currentLineOffset + currentLine.length,
+                    to: currentLineOffset + currentLine.length + 1,
+                    style: lineBreakStyle,
+                });
             }
             lineEnd = lineStart;
             currentLineOffset += currentLine.length + 1;
         }
         const result = {
             node: replacement.node,
-            translation: wrappedTranslationLines.join('\u2028'),
+            translation: wrappedTranslationLines.join("\u2028"),
             baseStyle: replacement.baseStyle,
             sections: wrappedSections,
         };
         bufferNode.remove();
-        console.log('Wrapped replacement:', result);
+        console.log("Wrapped replacement:", result);
         return result;
     });
 }
 function reverseNodeAlignments(nodes) {
     return __awaiter(this, void 0, void 0, function* () {
-        const alignments = nodes.map(node => ({ node, alignment: node.textAlignHorizontal }));
+        const alignments = nodes.map((node) => ({ node, alignment: node.textAlignHorizontal }));
         yield mapWithRateLimit(alignments, 500, ({ node, alignment }) => __awaiter(this, void 0, void 0, function* () {
-            if (alignment !== 'LEFT' && alignment !== 'RIGHT') {
+            if (alignment !== "LEFT" && alignment !== "RIGHT") {
                 return;
             }
             yield loadFontsForNode(node);
-            if (alignment === 'LEFT') {
-                node.textAlignHorizontal = 'RIGHT';
+            if (alignment === "LEFT") {
+                node.textAlignHorizontal = "RIGHT";
             }
-            else if (alignment === 'RIGHT') {
-                node.textAlignHorizontal = 'LEFT';
+            else if (alignment === "RIGHT") {
+                node.textAlignHorizontal = "LEFT";
             }
         }));
     });
@@ -423,275 +441,21 @@ function loadFontsForReplacement(replacement) {
 }
 function loadFontsForNode(node) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield Promise.all(Array.from({ length: node.characters.length }, (_, k) => k).map(i => {
+        yield Promise.all(Array.from({ length: node.characters.length }, (_, k) => k).map((i) => {
             return figma.loadFontAsync(node.getRangeFontName(i, i + 1));
         }));
-    });
-}
-function convertCurrencyInSelection(settings) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const currencies = parseCurrencies(settings.serializedCurrencies);
-        console.log('Currencies:', currencies);
-        const sourceCurrency = currencies.filter(currency => currency.code === settings.sourceCurrencyCode)[0];
-        if (sourceCurrency === undefined) {
-            throw { error: 'unknown currency code `' + settings.sourceCurrencyCode + '`' };
-        }
-        const targetCurrency = currencies.filter(currency => currency.code === settings.targetCurrencyCode)[0];
-        if (targetCurrency === undefined) {
-            throw { error: 'unknown currency code `' + settings.targetCurrencyCode + '`' };
-        }
-        yield replaceCurrencyInAllTexts(sourceCurrency, targetCurrency);
-    });
-}
-function parseCurrencies(serializedCurrencies) {
-    const codeSet = new Set();
-    return JSON.parse(serializedCurrencies).map((x, index) => {
-        const currency = {
-            code: null,
-            schema: null,
-            digitGroupSeparator: null,
-            decimalSeparator: null,
-            precision: null,
-            rate: null,
-        };
-        Object.keys(currency).forEach(key => {
-            if (x[key] === undefined || x[key] === null) {
-                throw { error: 'invalid currency definition: no `' + key + '` in entry #' + (index + 1) };
-            }
-            if (key === 'schema' && x[key].indexOf('123') === -1) {
-                throw { error: 'schema in entry #' + (index + 1) + ' should contain `123`' };
-            }
-            if (key === 'rate' && x[key] <= 0) {
-                throw { error: 'non-positive rate in entry #' + (index + 1) };
-            }
-            currency[key] = x[key];
-        });
-        if (currency.precision > 0 && currency.decimalSeparator === '') {
-            throw { error: 'entry #' + (index + 1) + ' must have a non-empty decimal separator' };
-        }
-        if (codeSet.has(currency.code)) {
-            throw { error: 'multiple entries for `' + currency.code + '`' };
-        }
-        codeSet.add(currency.code);
-        return currency;
-    });
-}
-function replaceCurrencyInAllTexts(sourceCurrency, targetCurrency) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const textNodes = yield findSelectedTextNodes();
-        const escapedSchema = escapeForRegExp(sourceCurrency.schema);
-        const escapedDigitGroupSeparator = escapeForRegExp(sourceCurrency.digitGroupSeparator);
-        const escapedDecimalSeparator = escapeForRegExp(sourceCurrency.decimalSeparator);
-        const sourceValueRegExpString = '((?:\\d|\\d' + escapedDigitGroupSeparator + '\\d)+' + escapedDecimalSeparator + '\\d{' + sourceCurrency.precision + '})';
-        const sourceRegExpString = '\\b' + escapedSchema.replace('123', sourceValueRegExpString + '(?:(\\s*[-\u2010-\u2015]\\s*)' + sourceValueRegExpString + ')?');
-        const sourceRegExp = new RegExp(sourceRegExpString, 'g');
-        console.log('Source regular expression:', sourceRegExpString);
-        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
-            const content = node.characters;
-            const regexp = new RegExp(sourceRegExp);
-            const conversions = [];
-            while (true) {
-                const match = regexp.exec(content);
-                if (match === null) {
-                    break;
-                }
-                const style = getSectionStyle(node, match.index, match.index + match[0].length);
-                if (style === figma.mixed) {
-                    throw { error: 'node `' + content + '` has a mixed-styled money value' };
-                }
-                yield figma.loadFontAsync(style.fontName);
-                let targetValueString = convertMoneyValue(match[1], sourceCurrency, targetCurrency);
-                if (match[3] !== null && match[3] !== undefined) {
-                    targetValueString += match[2] + convertMoneyValue(match[3], sourceCurrency, targetCurrency);
-                }
-                conversions.push({
-                    from: match.index,
-                    to: match.index + match[0].length,
-                    target: targetCurrency.schema.replace('123', targetValueString),
-                });
-            }
-            conversions.reverse().forEach(({ from, to, target }) => {
-                node.insertCharacters(to, target, 'BEFORE');
-                node.deleteCharacters(from, to);
-            });
-        }));
-    });
-}
-function convertMoneyValue(value, sourceCurrency, targetCurrency) {
-    return renderMoneyValue(extractMoneyValue(value, sourceCurrency) * targetCurrency.rate / sourceCurrency.rate, targetCurrency);
-}
-function extractMoneyValue(value, currency) {
-    let resultAsString = value.replace(new RegExp(escapeForRegExp(currency.digitGroupSeparator), 'g'), '');
-    if (currency.decimalSeparator !== '') {
-        resultAsString = resultAsString.replace(currency.decimalSeparator, '.');
-    }
-    return parseFloat(resultAsString);
-}
-function renderMoneyValue(value, currency) {
-    const truncatedValue = Math.trunc(value);
-    const valueFraction = value - truncatedValue;
-    return (truncatedValue.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,').replace(/,/g, currency.digitGroupSeparator) +
-        currency.decimalSeparator +
-        valueFraction.toFixed(currency.precision).slice(2));
-}
-function escapeForRegExp(s) {
-    return s.replace(/([[\^$.|?*+()])/g, '\\$1');
-}
-// Font substitution
-function sendAvailableFonts() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const availableFonts = (yield figma.listAvailableFontsAsync()).map(f => f.fontName);
-        figma.ui.postMessage({ type: 'available-fonts', availableFonts });
-    });
-}
-function sendSelectionFonts() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const textNodes = yield findSelectedTextNodes();
-        const selectionFontIds = new Set();
-        const selectionFonts = [];
-        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
-            if (node.characters === '') {
-                return;
-            }
-            const sections = sliceIntoSections(node);
-            for (let { style } of sections) {
-                const fontId = JSON.stringify(style.fontName);
-                if (!selectionFontIds.has(fontId)) {
-                    selectionFontIds.add(fontId);
-                    selectionFonts.push(style.fontName);
-                }
-            }
-        }));
-        figma.ui.postMessage({ type: 'selection-fonts', selectionFonts });
-    });
-}
-function substituteFontsInSelection(settings) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const substitutions = JSON.parse(settings.serializedFontSubstitutions);
-        const fontMapping = new Map();
-        for (let substitution of substitutions) {
-            const sourceFontId = JSON.stringify(substitution.sourceFont);
-            fontMapping.set(sourceFontId, substitution.targetFont);
-            yield figma.loadFontAsync(substitution.targetFont);
-        }
-        const textNodes = yield findSelectedTextNodes();
-        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
-            if (node.characters === '') {
-                return;
-            }
-            const sections = sliceIntoSections(node);
-            for (let { style } of sections) {
-                yield figma.loadFontAsync(style.fontName);
-            }
-            for (let { from, to, style } of sections) {
-                const fontId = JSON.stringify(style.fontName);
-                if (fontMapping.has(fontId)) {
-                    const newStyle = Object.assign({}, style);
-                    newStyle.fontName = fontMapping.get(fontId);
-                    setSectionStyle(node, from, to, newStyle);
-                }
-            }
-        }));
-    });
-}
-function mirrorSelection(settings) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const selection = figma.currentPage.selection;
-        const nodesToMirror = selection.concat(findMirrorableNodes(selection));
-        const componentIds = new Set();
-        findNodesOfType(selection, 'COMPONENT').forEach(node => {
-            componentIds.add(node.id);
-        });
-        const failures = [];
-        findNodesOfType(selection, 'INSTANCE').forEach((node) => {
-            const componentId = node.mainComponent.id;
-            if (node.locked) {
-                if (componentIds.has(componentId) && !node.mainComponent.locked) {
-                    failures.push({ nodeId: node.id, error: 'Locked, but its main component is not' });
-                    return;
-                }
-            }
-            else {
-                if (!componentIds.has(componentId)) {
-                    failures.push({ nodeId: node.id, error: 'Unlocked, but its main component is not selected' });
-                    return;
-                }
-            }
-        });
-        if (failures.length > 0) {
-            throw { error: 'found some unmirrorable nodes', failures };
-        }
-        yield mapWithRateLimit(nodesToMirror, 300, mirrorNode);
-    });
-}
-function findMirrorableNodes(roots) {
-    const result = [];
-    roots.forEach(root => {
-        if ('findAll' in root && !root.locked) {
-            if (root.type !== 'INSTANCE') {
-                findMirrorableNodes(root.children).forEach(node => result.push(node));
-            }
-        }
-        else {
-            result.push(root);
-        }
-    });
-    return result;
-}
-function findNodesOfType(roots, nodeType) {
-    const result = [];
-    roots.forEach(root => {
-        if (root.type === nodeType) {
-            result.push(root);
-        }
-        else if ('findAll' in root && !root.locked) {
-            findNodesOfType(root.children, nodeType).forEach(node => result.push(node));
-        }
-    });
-    return result;
-}
-function mirrorNode(node) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const w = node.width;
-        const t = node.relativeTransform;
-        node.relativeTransform = [
-            [-t[0][0], t[0][1], w * t[0][0] + t[0][2]],
-            [-t[1][0], t[1][1], w * t[1][0] + t[1][2]],
-        ];
-    });
-}
-function clipSelection(settings) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (figma.currentPage.selection.length > 1) {
-            throw { error: 'more than 1 node selected (group your nodes first)' };
-        }
-        const selectedNode = figma.currentPage.selection[0];
-        if (selectedNode.parent == null) {
-            throw { error: 'the selected node has no parent' };
-        }
-        if (!('width' in selectedNode.parent)) {
-            throw { error: 'the parent node size is undefined' };
-        }
-        const host = selectedNode.parent;
-        const nodeIndex = host.children.indexOf(selectedNode);
-        const clipper = figma.createFrame();
-        clipper.backgrounds = [];
-        clipper.resizeWithoutConstraints(host.width, host.height);
-        clipper.clipsContent = true;
-        clipper.appendChild(selectedNode);
-        host.insertChild(nodeIndex, clipper);
     });
 }
 // Utilities
 function findSelectedTextNodes() {
     return __awaiter(this, void 0, void 0, function* () {
         const result = [];
-        figma.currentPage.selection.forEach(root => {
-            if (root.type === 'TEXT') {
+        figma.currentPage.selection.forEach((root) => {
+            if (root.type === "TEXT") {
                 result.push(root);
             }
-            else if ('findAll' in root) {
-                root.findAll(node => node.type === 'TEXT').forEach(node => result.push(node));
+            else if ("findAll" in root) {
+                root.findAll((node) => node.type === "TEXT").forEach((node) => result.push(node));
             }
         });
         return result;
@@ -706,7 +470,7 @@ function sliceIntoSections(node, from = 0, to = node.characters.length) {
         return [{ from, to, style }];
     }
     if (to - from === 1) {
-        console.log('WARNING! Unexpected problem at node `' + node.characters + '`: a single character has "mixed" style');
+        console.log("WARNING! Unexpected problem at node `" + node.characters + '`: a single character has "mixed" style');
         return []; // TODO: fix the problem
     }
     const center = Math.floor((from + to) / 2);
@@ -787,11 +551,11 @@ function mapWithRateLimit(array, rateLimit, mapper) {
         let index = 0;
         let done = 0;
         var startTime = Date.now();
-        const computeDelay = () => startTime + index * 1000.0 / rateLimit - Date.now();
+        const computeDelay = () => startTime + (index * 1000.0) / rateLimit - Date.now();
         const schedule = () => {
             while (index < array.length && computeDelay() < 0) {
-                (i => {
-                    mapper(array[i]).then(y => {
+                ((i) => {
+                    mapper(array[i]).then((y) => {
                         result[i] = y;
                         ++done;
                         schedule();
@@ -814,116 +578,34 @@ function mapWithRateLimit(array, rateLimit, mapper) {
 }
 figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
-    if (message.type === 'load-settings') {
+    if (message.type === "load-settings") {
         const settings = yield SettingsManager.load();
-        console.log('Loaded settings:', settings);
-        figma.ui.postMessage({ type: 'settings', settings });
-        figma.ui.postMessage({ type: 'ready' });
+        console.log("Loaded settings:", settings);
+        figma.ui.postMessage({ type: "settings", settings });
+        figma.ui.postMessage({ type: "ready" });
     }
-    else if (message.type === 'load-available-fonts') {
-        yield sendAvailableFonts();
-    }
-    else if (message.type === 'load-selection-fonts') {
-        yield sendSelectionFonts();
-    }
-    else if (message.type === 'translate') {
+    else if (message.type === "translate") {
         yield SettingsManager.save(message.settings);
         yield translateSelection(message.settings)
             .then(() => {
-            figma.notify('Done');
-            figma.ui.postMessage({ type: 'translation-failures', failures: [] });
-            figma.ui.postMessage({ type: 'ready' });
+            figma.notify("Done");
+            figma.ui.postMessage({ type: "translation-failures", failures: [] });
+            figma.ui.postMessage({ type: "ready" });
         })
-            .catch(reason => {
-            if ('error' in reason) {
-                figma.notify('Translation failed: ' + reason.error);
-                if ('failures' in reason) {
-                    figma.ui.postMessage({ type: 'translation-failures', failures: reason.failures });
+            .catch((reason) => {
+            if ("error" in reason) {
+                figma.notify("Translation failed: " + reason.error);
+                if ("failures" in reason) {
+                    figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
                 }
             }
             else {
                 figma.notify(reason.toString());
             }
-            figma.ui.postMessage({ type: 'ready' });
+            figma.ui.postMessage({ type: "ready" });
         });
     }
-    else if (message.type === 'convert-currency') {
+    else if (message.type === "convert-currency") {
         yield SettingsManager.save(message.settings);
-        yield convertCurrencyInSelection(message.settings)
-            .then(() => {
-            figma.notify('Done');
-            figma.ui.postMessage({ type: 'ready' });
-        })
-            .catch(reason => {
-            if ('error' in reason) {
-                figma.notify('Currency conversion failed: ' + reason.error);
-            }
-            else {
-                figma.notify(reason.toString());
-            }
-            figma.ui.postMessage({ type: 'ready' });
-        });
-    }
-    else if (message.type === 'mirror') {
-        yield SettingsManager.save(message.settings);
-        yield mirrorSelection(message.settings)
-            .then(() => {
-            figma.notify('Done');
-            figma.ui.postMessage({ type: 'mirroring-failures', failures: [] });
-            figma.ui.postMessage({ type: 'ready' });
-        })
-            .catch(reason => {
-            if ('error' in reason) {
-                figma.notify('Mirroring failed: ' + reason.error);
-                if ('failures' in reason) {
-                    figma.ui.postMessage({ type: 'mirroring-failures', failures: reason.failures });
-                }
-            }
-            else {
-                figma.notify(reason.toString());
-            }
-            figma.ui.postMessage({ type: 'ready' });
-        });
-    }
-    else if (message.type === 'clip') {
-        yield SettingsManager.save(message.settings);
-        yield clipSelection(message.settings)
-            .then(() => {
-            figma.notify('Done');
-            figma.ui.postMessage({ type: 'mirroring-failures', failures: [] });
-            figma.ui.postMessage({ type: 'ready' });
-        })
-            .catch(reason => {
-            if ('error' in reason) {
-                figma.notify('Clipping failed: ' + reason.error);
-            }
-            else {
-                figma.notify(reason.toString());
-            }
-            figma.ui.postMessage({ type: 'ready' });
-        });
-    }
-    else if (message.type === 'substitute-fonts') {
-        yield SettingsManager.save(message.settings);
-        yield substituteFontsInSelection(message.settings)
-            .then(() => sendSelectionFonts().then(() => {
-            figma.notify('Done');
-            figma.ui.postMessage({ type: 'ready' });
-        }))
-            .catch(reason => {
-            if ('error' in reason) {
-                figma.notify('Font substitution failed: ' + reason.error);
-            }
-            else {
-                figma.notify(reason.toString());
-            }
-            figma.ui.postMessage({ type: 'ready' });
-        });
-    }
-    else if (message.type === 'focus-node') {
-        figma.viewport.zoom = 1000.0;
-        figma.viewport.scrollAndZoomIntoView([figma.getNodeById(message.id)]);
-        figma.viewport.zoom = 0.75 * figma.viewport.zoom;
     }
 });
-figma.on("selectionchange", sendSelectionFonts);
