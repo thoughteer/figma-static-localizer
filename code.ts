@@ -2,14 +2,12 @@ type Settings = {
   serializedDictionary: string;
   serializedExceptions: string;
   sourceLanguage: string;
-  targetLanguage: string;
 };
 
 const DEFAULT: Settings = {
-  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!",
+  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!",
   serializedExceptions: "",
   sourceLanguage: "RU",
-  targetLanguage: "EN",
 };
 
 // *
@@ -33,8 +31,15 @@ type Dictionary = {
   rows: string[][];
 };
 
+type LanguageMapping = {
+  [country: string]: string;
+};
+
 type Mapping = {
   [source: string]: string;
+};
+type NewMapping = {
+  [source: string]: LanguageMapping;
 };
 
 type Section = {
@@ -58,9 +63,9 @@ type ReplacementFailure = {
 
 type ReplacementAttempt = Replacement | ReplacementFailure;
 
-async function translateSelection(settings: Settings): Promise<void> {
+async function translateSelectionAndSave(settings: Settings): Promise<void> {
   const dictionary = await parseDictionary(settings.serializedDictionary);
-  const mapping = await getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
+  const mapping = (await getMapping(dictionary, settings.sourceLanguage)) as any;
   const exceptions = await parseExceptions(settings.serializedExceptions);
   await replaceAllTexts(mapping, exceptions);
 }
@@ -85,25 +90,26 @@ async function parseDictionary(serializedDictionary: string): Promise<Dictionary
   return { header, rows };
 }
 
-async function getMapping(dictionary: Dictionary, sourceLanguage: string, targetLanguage: string): Promise<Mapping> {
+async function getMapping(dictionary: Dictionary, sourceLanguage: string): Promise<NewMapping> {
   const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
   if (sourceColumnIndex == -1) {
     throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
   }
-  const targetColumnIndex = dictionary.header.indexOf(targetLanguage);
-  if (targetColumnIndex == -1) {
-    throw { error: targetLanguage + " not listed in [" + dictionary.header + "]" };
-  }
-  const result: Mapping = {};
+
+  const result: NewMapping = {};
   dictionary.rows.forEach((row) => {
     const sourceString = row[sourceColumnIndex];
-    const targetString = row[targetColumnIndex];
-    if (targetString.trim() !== "") {
-      if (sourceString in result) {
-        throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
-      }
-      result[sourceString] = targetString;
+    if (sourceString in result) {
+      throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
     }
+    const entries: [country: string, word: string][] = dictionary.header.map((country, countryIdx) => [
+      country,
+      row[countryIdx],
+    ]); // [['RU', 'Привет']]
+    result[sourceString] = dictionary.header.reduce<LanguageMapping>((acc, country, countryIdx) => {
+      acc[country] = row[countryIdx];
+      return acc;
+    }, {});
   });
   console.log("Extracted mapping:", result);
   return result;
@@ -124,6 +130,8 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
 
 async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
+  console.log(textNodes);
+  return;
 
   let replacements = (
     await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))
@@ -623,7 +631,8 @@ figma.ui.onmessage = async (message) => {
     figma.ui.postMessage({ type: "settings", settings });
     figma.ui.postMessage({ type: "ready" });
   } else if (message.type === "translate") {
-    await translateSelection(message.settings)
+    await getMapping(await parseDictionary(message.settings.serializedDictionary), message.settings.sourceLanguage);
+    await translateSelectionAndSave(message.settings)
       .then(() => {
         figma.notify("Done");
         figma.ui.postMessage({ type: "translation-failures", failures: [] });

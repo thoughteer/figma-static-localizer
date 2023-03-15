@@ -8,15 +8,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const DEFAULT = {
-    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!",
+    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!",
     serializedExceptions: "",
     sourceLanguage: "RU",
-    targetLanguage: "EN",
 };
-function translateSelection(settings) {
+function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
-        const mapping = yield getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
+        const mapping = (yield getMapping(dictionary, settings.sourceLanguage));
         const exceptions = yield parseExceptions(settings.serializedExceptions);
         yield replaceAllTexts(mapping, exceptions);
     });
@@ -41,26 +40,26 @@ function parseDictionary(serializedDictionary) {
         return { header, rows };
     });
 }
-function getMapping(dictionary, sourceLanguage, targetLanguage) {
+function getMapping(dictionary, sourceLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
         const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
         if (sourceColumnIndex == -1) {
             throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
         }
-        const targetColumnIndex = dictionary.header.indexOf(targetLanguage);
-        if (targetColumnIndex == -1) {
-            throw { error: targetLanguage + " not listed in [" + dictionary.header + "]" };
-        }
         const result = {};
         dictionary.rows.forEach((row) => {
             const sourceString = row[sourceColumnIndex];
-            const targetString = row[targetColumnIndex];
-            if (targetString.trim() !== "") {
-                if (sourceString in result) {
-                    throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
-                }
-                result[sourceString] = targetString;
+            if (sourceString in result) {
+                throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
             }
+            const entries = dictionary.header.map((country, countryIdx) => [
+                country,
+                row[countryIdx],
+            ]); // [['RU', 'Привет']]
+            result[sourceString] = dictionary.header.reduce((acc, country, countryIdx) => {
+                acc[country] = row[countryIdx];
+                return acc;
+            }, {});
         });
         console.log("Extracted mapping:", result);
         return result;
@@ -84,6 +83,8 @@ function parseExceptions(serializedExceptions) {
 function replaceAllTexts(mapping, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
+        console.log(textNodes);
+        return;
         let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
         let failures = replacements.filter((r) => "error" in r);
         if (failures.length == 0 /* && targetLanguageIsRTL*/) {
@@ -533,7 +534,8 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         figma.ui.postMessage({ type: "ready" });
     }
     else if (message.type === "translate") {
-        yield translateSelection(message.settings)
+        yield getMapping(yield parseDictionary(message.settings.serializedDictionary), message.settings.sourceLanguage);
+        yield translateSelectionAndSave(message.settings)
             .then(() => {
             figma.notify("Done");
             figma.ui.postMessage({ type: "translation-failures", failures: [] });
