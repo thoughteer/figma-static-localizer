@@ -474,11 +474,7 @@
         fields = Object.keys(message.settings);
         fields.forEach((field) => {
           const element = document.getElementById(field);
-          if (element.hasAttribute("checked")) {
-            element.checked = message.settings[field];
-          } else {
-            element.value = message.settings[field];
-          }
+          element.value = message.settings[field];
         });
       } else if (message.type === "translation-failures") {
         updateTranslationFailures(message.failures);

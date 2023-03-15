@@ -7,36 +7,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var SettingsManager;
-(function (SettingsManager) {
-    const DEFAULT = {
-        serializedDictionary: "RU\tEN\nПривет!\tHello!",
-        serializedExceptions: "",
-        sourceLanguage: "RU",
-        targetLanguage: "EN",
-    };
-    const FIELDS = Object.keys(DEFAULT);
-    const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
-    function load() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const result = {};
-            const promises = FIELDS.map((field) => figma.clientStorage
-                .getAsync(CLIENT_STORAGE_PREFIX + field)
-                .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value })));
-            (yield Promise.all(promises)).forEach(({ field, value }) => {
-                result[field] = value;
-            });
-            return result;
-        });
-    }
-    SettingsManager.load = load;
-    function save(settings) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield Promise.all(FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
-        });
-    }
-    SettingsManager.save = save;
-})(SettingsManager || (SettingsManager = {}));
+const DEFAULT = {
+    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!",
+    serializedExceptions: "",
+    sourceLanguage: "RU",
+    targetLanguage: "EN",
+};
 function translateSelection(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
@@ -551,13 +527,12 @@ function mapWithRateLimit(array, rateLimit, mapper) {
 figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     if (message.type === "load-settings") {
-        const settings = yield SettingsManager.load();
-        console.log("Loaded settings:", settings);
+        const settings = DEFAULT;
+        console.log("Loaded settings:", DEFAULT);
         figma.ui.postMessage({ type: "settings", settings });
         figma.ui.postMessage({ type: "ready" });
     }
     else if (message.type === "translate") {
-        yield SettingsManager.save(message.settings);
         yield translateSelection(message.settings)
             .then(() => {
             figma.notify("Done");
@@ -576,8 +551,5 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             }
             figma.ui.postMessage({ type: "ready" });
         });
-    }
-    else if (message.type === "convert-currency") {
-        yield SettingsManager.save(message.settings);
     }
 });

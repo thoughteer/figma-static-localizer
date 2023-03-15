@@ -5,35 +5,12 @@ type Settings = {
   targetLanguage: string;
 };
 
-namespace SettingsManager {
-  const DEFAULT: Settings = {
-    serializedDictionary: "RU\tEN\nПривет!\tHello!",
-    serializedExceptions: "",
-    sourceLanguage: "RU",
-    targetLanguage: "EN",
-  };
-  const FIELDS = Object.keys(DEFAULT);
-  const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
-
-  export async function load(): Promise<Settings> {
-    const result = <Settings>{};
-    const promises = FIELDS.map((field) =>
-      figma.clientStorage
-        .getAsync(CLIENT_STORAGE_PREFIX + field)
-        .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value }))
-    );
-    (await Promise.all(promises)).forEach(({ field, value }) => {
-      result[field] = value;
-    });
-    return result;
-  }
-
-  export async function save(settings: Settings): Promise<void> {
-    await Promise.all(
-      FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field]))
-    );
-  }
-}
+const DEFAULT: Settings = {
+  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!",
+  serializedExceptions: "",
+  sourceLanguage: "RU",
+  targetLanguage: "EN",
+};
 
 // *
 
@@ -641,12 +618,11 @@ figma.showUI(__html__, { width: 400, height: 400 });
 
 figma.ui.onmessage = async (message) => {
   if (message.type === "load-settings") {
-    const settings = await SettingsManager.load();
-    console.log("Loaded settings:", settings);
+    const settings = DEFAULT;
+    console.log("Loaded settings:", DEFAULT);
     figma.ui.postMessage({ type: "settings", settings });
     figma.ui.postMessage({ type: "ready" });
   } else if (message.type === "translate") {
-    await SettingsManager.save(message.settings);
     await translateSelection(message.settings)
       .then(() => {
         figma.notify("Done");
@@ -664,7 +640,5 @@ figma.ui.onmessage = async (message) => {
         }
         figma.ui.postMessage({ type: "ready" });
       });
-  } else if (message.type === "convert-currency") {
-    await SettingsManager.save(message.settings);
   }
 };
