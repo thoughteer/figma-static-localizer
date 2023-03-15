@@ -14,7 +14,6 @@ var SettingsManager;
         serializedExceptions: "",
         sourceLanguage: "RU",
         targetLanguage: "EN",
-        targetLanguageIsRTL: false,
     };
     const FIELDS = Object.keys(DEFAULT);
     const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
@@ -43,7 +42,7 @@ function translateSelection(settings) {
         const dictionary = yield parseDictionary(settings.serializedDictionary);
         const mapping = yield getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
         const exceptions = yield parseExceptions(settings.serializedExceptions);
-        yield replaceAllTexts(mapping, exceptions, settings.targetLanguageIsRTL);
+        yield replaceAllTexts(mapping, exceptions);
     });
 }
 function parseDictionary(serializedDictionary) {
@@ -106,21 +105,18 @@ function parseExceptions(serializedExceptions) {
         });
     });
 }
-function replaceAllTexts(mapping, exceptions, targetLanguageIsRTL) {
+function replaceAllTexts(mapping, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
         let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
         let failures = replacements.filter((r) => "error" in r);
-        if (failures.length == 0 && targetLanguageIsRTL) {
+        if (failures.length == 0 /* && targetLanguageIsRTL*/) {
             replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
             failures = replacements.filter((r) => "error" in r);
         }
         if (failures.length > 0) {
             console.log("Failures:", failures);
             throw { error: "found some untranslatable nodes", failures };
-        }
-        if (targetLanguageIsRTL) {
-            yield reverseNodeAlignments(textNodes);
         }
         yield mapWithRateLimit(replacements, 50, replaceText);
     });
@@ -403,23 +399,6 @@ function wrapReplacement(replacement) {
         return result;
     });
 }
-function reverseNodeAlignments(nodes) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const alignments = nodes.map((node) => ({ node, alignment: node.textAlignHorizontal }));
-        yield mapWithRateLimit(alignments, 500, ({ node, alignment }) => __awaiter(this, void 0, void 0, function* () {
-            if (alignment !== "LEFT" && alignment !== "RIGHT") {
-                return;
-            }
-            yield loadFontsForNode(node);
-            if (alignment === "LEFT") {
-                node.textAlignHorizontal = "RIGHT";
-            }
-            else if (alignment === "RIGHT") {
-                node.textAlignHorizontal = "LEFT";
-            }
-        }));
-    });
-}
 function replaceText(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         yield loadFontsForReplacement(replacement);
@@ -437,13 +416,6 @@ function loadFontsForReplacement(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         yield figma.loadFontAsync(replacement.baseStyle.fontName);
         yield Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
-    });
-}
-function loadFontsForNode(node) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield Promise.all(Array.from({ length: node.characters.length }, (_, k) => k).map((i) => {
-            return figma.loadFontAsync(node.getRangeFontName(i, i + 1));
-        }));
     });
 }
 // Utilities

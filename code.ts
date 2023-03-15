@@ -3,7 +3,6 @@ type Settings = {
   serializedExceptions: string;
   sourceLanguage: string;
   targetLanguage: string;
-  targetLanguageIsRTL: boolean;
 };
 
 namespace SettingsManager {
@@ -12,7 +11,6 @@ namespace SettingsManager {
     serializedExceptions: "",
     sourceLanguage: "RU",
     targetLanguage: "EN",
-    targetLanguageIsRTL: false,
   };
   const FIELDS = Object.keys(DEFAULT);
   const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
@@ -87,7 +85,7 @@ async function translateSelection(settings: Settings): Promise<void> {
   const dictionary = await parseDictionary(settings.serializedDictionary);
   const mapping = await getMapping(dictionary, settings.sourceLanguage, settings.targetLanguage);
   const exceptions = await parseExceptions(settings.serializedExceptions);
-  await replaceAllTexts(mapping, exceptions, settings.targetLanguageIsRTL);
+  await replaceAllTexts(mapping, exceptions);
 }
 
 async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
@@ -147,24 +145,20 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
     });
 }
 
-async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[], targetLanguageIsRTL: boolean): Promise<void> {
+async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
 
   let replacements = (
     await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))
   ).filter((r) => r !== null);
   let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-  if (failures.length == 0 && targetLanguageIsRTL) {
+  if (failures.length == 0 /* && targetLanguageIsRTL*/) {
     replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
     failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
   }
   if (failures.length > 0) {
     console.log("Failures:", failures);
     throw { error: "found some untranslatable nodes", failures };
-  }
-
-  if (targetLanguageIsRTL) {
-    await reverseNodeAlignments(textNodes);
   }
 
   await mapWithRateLimit(replacements, 50, replaceText);
@@ -483,21 +477,6 @@ async function wrapReplacement(replacement: Replacement): Promise<ReplacementAtt
   return result;
 }
 
-async function reverseNodeAlignments(nodes: TextNode[]): Promise<void> {
-  const alignments = nodes.map((node) => ({ node, alignment: node.textAlignHorizontal }));
-  await mapWithRateLimit(alignments, 500, async ({ node, alignment }) => {
-    if (alignment !== "LEFT" && alignment !== "RIGHT") {
-      return;
-    }
-    await loadFontsForNode(node);
-    if (alignment === "LEFT") {
-      node.textAlignHorizontal = "RIGHT";
-    } else if (alignment === "RIGHT") {
-      node.textAlignHorizontal = "LEFT";
-    }
-  });
-}
-
 async function replaceText(replacement: Replacement): Promise<void> {
   await loadFontsForReplacement(replacement);
 
@@ -514,14 +493,6 @@ async function replaceText(replacement: Replacement): Promise<void> {
 async function loadFontsForReplacement(replacement: Replacement): Promise<void> {
   await figma.loadFontAsync(replacement.baseStyle.fontName);
   await Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
-}
-
-async function loadFontsForNode(node: TextNode): Promise<void> {
-  await Promise.all(
-    Array.from({ length: node.characters.length }, (_, k) => k).map((i) => {
-      return figma.loadFontAsync(node.getRangeFontName(i, i + 1) as FontName);
-    })
-  );
 }
 
 // Utilities
