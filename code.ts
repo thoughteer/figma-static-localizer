@@ -31,15 +31,8 @@ type Dictionary = {
   rows: string[][];
 };
 
-type LanguageMapping = {
-  [country: string]: string;
-};
-
 type Mapping = {
   [source: string]: string;
-};
-type NewMapping = {
-  [source: string]: LanguageMapping;
 };
 
 type Section = {
@@ -64,21 +57,30 @@ type ReplacementFailure = {
 type ReplacementAttempt = Replacement | ReplacementFailure;
 
 async function translateSelectionAndSave(settings: Settings): Promise<void> {
-  const dictionary = await parseDictionary(settings.serializedDictionary);
-  const mapping = (await getMapping(dictionary, settings.sourceLanguage)) as any;
+  const dictionary = await parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
+  const mappings = await getMappings(dictionary, settings.sourceLanguage);
   const exceptions = await parseExceptions(settings.serializedExceptions);
-  await replaceAllTexts(mapping, exceptions);
+  await replaceAllTextsAndSave(mappings, exceptions);
 }
 
-async function parseDictionary(serializedDictionary: string): Promise<Dictionary> {
+async function parseDictionary(serializedDictionary: string, sourceLanguage: string): Promise<Dictionary> {
   const table = serializedDictionary.split("\n").map((line) => line.split("\t").map((field) => field.trim()));
   if (table.length === 0) {
     throw { error: "no header in the dictionary" };
   }
-  const header = table[0];
+  const unshiftSelectedItem = (strings: string[], idx: number): string[] => {
+    const sourceItem = strings.splice(idx, 1)[0];
+    const updatedStrings = [sourceItem, ...strings];
+    return updatedStrings;
+  };
+  const sourceColumnIndex = table[0].indexOf(sourceLanguage);
+  const header = unshiftSelectedItem(table[0], sourceColumnIndex);
   const expectedColumnCount = header.length;
-  const rows = table.slice(1, table.length);
+
+  const rows = table.slice(1, table.length).map((row) => unshiftSelectedItem(row, sourceColumnIndex));
+
   console.log("Dictionary:", { header, rows });
+
   rows.forEach((row, index) => {
     if (row.length != expectedColumnCount) {
       throw {
@@ -90,26 +92,20 @@ async function parseDictionary(serializedDictionary: string): Promise<Dictionary
   return { header, rows };
 }
 
-async function getMapping(dictionary: Dictionary, sourceLanguage: string): Promise<NewMapping> {
+async function getMappings(dictionary: Dictionary, sourceLanguage: string): Promise<Mapping[]> {
   const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
   if (sourceColumnIndex == -1) {
     throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
   }
 
-  const result: NewMapping = {};
-  dictionary.rows.forEach((row) => {
-    const sourceString = row[sourceColumnIndex];
-    if (sourceString in result) {
-      throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
-    }
-    const entries: [country: string, word: string][] = dictionary.header.map((country, countryIdx) => [
-      country,
-      row[countryIdx],
-    ]); // [['RU', 'Привет']]
-    result[sourceString] = dictionary.header.reduce<LanguageMapping>((acc, country, countryIdx) => {
-      acc[country] = row[countryIdx];
-      return acc;
-    }, {});
+  const result = dictionary.header.map((language, idx) => {
+    const _mapping: Mapping = {};
+    dictionary.rows.forEach((row) => {
+      const sourceWord: string = row[sourceColumnIndex];
+      const targetWord: string = row[idx];
+      _mapping[sourceWord] = targetWord;
+    });
+    return _mapping;
   });
   console.log("Extracted mapping:", result);
   return result;
@@ -128,25 +124,24 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
     });
 }
 
-async function replaceAllTexts(mapping: Mapping, exceptions: RegExp[]): Promise<void> {
+async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
-  console.log(textNodes);
-  return;
+  for (const mapping of mappings) {
+    let replacements = (
+      await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))
+    ).filter((r) => r !== null);
+    let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
+    if (failures.length == 0) {
+      replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+      failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
+    }
+    if (failures.length > 0) {
+      console.log("Failures:", failures);
+      throw { error: "found some untranslatable nodes", failures };
+    }
 
-  let replacements = (
-    await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))
-  ).filter((r) => r !== null);
-  let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-  if (failures.length == 0 /* && targetLanguageIsRTL*/) {
-    replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-    failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
+    await mapWithRateLimit(replacements, 50, replaceText);
   }
-  if (failures.length > 0) {
-    console.log("Failures:", failures);
-    throw { error: "found some untranslatable nodes", failures };
-  }
-
-  await mapWithRateLimit(replacements, 50, replaceText);
 }
 
 async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: RegExp[]): Promise<ReplacementAttempt> {
@@ -631,7 +626,6 @@ figma.ui.onmessage = async (message) => {
     figma.ui.postMessage({ type: "settings", settings });
     figma.ui.postMessage({ type: "ready" });
   } else if (message.type === "translate") {
-    await getMapping(await parseDictionary(message.settings.serializedDictionary), message.settings.sourceLanguage);
     await translateSelectionAndSave(message.settings)
       .then(() => {
         figma.notify("Done");

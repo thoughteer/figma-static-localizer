@@ -14,21 +14,27 @@ const DEFAULT = {
 };
 function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
-        const dictionary = yield parseDictionary(settings.serializedDictionary);
-        const mapping = (yield getMapping(dictionary, settings.sourceLanguage));
+        const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
+        const mappings = yield getMappings(dictionary, settings.sourceLanguage);
         const exceptions = yield parseExceptions(settings.serializedExceptions);
-        yield replaceAllTexts(mapping, exceptions);
+        yield replaceAllTextsAndSave(mappings, exceptions);
     });
 }
-function parseDictionary(serializedDictionary) {
+function parseDictionary(serializedDictionary, sourceLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
         const table = serializedDictionary.split("\n").map((line) => line.split("\t").map((field) => field.trim()));
         if (table.length === 0) {
             throw { error: "no header in the dictionary" };
         }
-        const header = table[0];
+        const unshiftSelectedItem = (strings, idx) => {
+            const sourceItem = strings.splice(idx, 1)[0];
+            const updatedStrings = [sourceItem, ...strings];
+            return updatedStrings;
+        };
+        const sourceColumnIndex = table[0].indexOf(sourceLanguage);
+        const header = unshiftSelectedItem(table[0], sourceColumnIndex);
         const expectedColumnCount = header.length;
-        const rows = table.slice(1, table.length);
+        const rows = table.slice(1, table.length).map((row) => unshiftSelectedItem(row, sourceColumnIndex));
         console.log("Dictionary:", { header, rows });
         rows.forEach((row, index) => {
             if (row.length != expectedColumnCount) {
@@ -40,26 +46,20 @@ function parseDictionary(serializedDictionary) {
         return { header, rows };
     });
 }
-function getMapping(dictionary, sourceLanguage) {
+function getMappings(dictionary, sourceLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
         const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
         if (sourceColumnIndex == -1) {
             throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
         }
-        const result = {};
-        dictionary.rows.forEach((row) => {
-            const sourceString = row[sourceColumnIndex];
-            if (sourceString in result) {
-                throw { error: "multiple translations for `" + sourceString + "` in the dictionary" };
-            }
-            const entries = dictionary.header.map((country, countryIdx) => [
-                country,
-                row[countryIdx],
-            ]); // [['RU', 'Привет']]
-            result[sourceString] = dictionary.header.reduce((acc, country, countryIdx) => {
-                acc[country] = row[countryIdx];
-                return acc;
-            }, {});
+        const result = dictionary.header.map((language, idx) => {
+            const _mapping = {};
+            dictionary.rows.forEach((row) => {
+                const sourceWord = row[sourceColumnIndex];
+                const targetWord = row[idx];
+                _mapping[sourceWord] = targetWord;
+            });
+            return _mapping;
         });
         console.log("Extracted mapping:", result);
         return result;
@@ -80,22 +80,22 @@ function parseExceptions(serializedExceptions) {
         });
     });
 }
-function replaceAllTexts(mapping, exceptions) {
+function replaceAllTextsAndSave(mappings, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        console.log(textNodes);
-        return;
-        let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
-        let failures = replacements.filter((r) => "error" in r);
-        if (failures.length == 0 /* && targetLanguageIsRTL*/) {
-            replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-            failures = replacements.filter((r) => "error" in r);
+        for (const mapping of mappings) {
+            let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
+            let failures = replacements.filter((r) => "error" in r);
+            if (failures.length == 0) {
+                replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+                failures = replacements.filter((r) => "error" in r);
+            }
+            if (failures.length > 0) {
+                console.log("Failures:", failures);
+                throw { error: "found some untranslatable nodes", failures };
+            }
+            yield mapWithRateLimit(replacements, 50, replaceText);
         }
-        if (failures.length > 0) {
-            console.log("Failures:", failures);
-            throw { error: "found some untranslatable nodes", failures };
-        }
-        yield mapWithRateLimit(replacements, 50, replaceText);
     });
 }
 function computeReplacement(node, mapping, exceptions) {
@@ -534,7 +534,6 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         figma.ui.postMessage({ type: "ready" });
     }
     else if (message.type === "translate") {
-        yield getMapping(yield parseDictionary(message.settings.serializedDictionary), message.settings.sourceLanguage);
         yield translateSelectionAndSave(message.settings)
             .then(() => {
             figma.notify("Done");
