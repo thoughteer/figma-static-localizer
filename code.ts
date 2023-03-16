@@ -93,20 +93,21 @@ async function parseDictionary(serializedDictionary: string, sourceLanguage: str
 }
 
 async function getMappings(dictionary: Dictionary, sourceLanguage: string): Promise<Mapping[]> {
-  const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
+  let sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
   if (sourceColumnIndex == -1) {
     throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
   }
 
-  const result = dictionary.header.map((language, idx) => {
+  const result = dictionary.header.map((language, languageIdx) => {
     const _mapping: Mapping = {};
-    dictionary.rows.forEach((row) => {
-      const sourceWord: string = row[sourceColumnIndex];
-      const targetWord: string = row[idx];
+    dictionary.rows.forEach((row, idx) => {
+      const sourceWord: string = row[languageIdx];
+      const targetWord: string = row[(languageIdx + 1) % dictionary.header.length];
       _mapping[sourceWord] = targetWord;
     });
     return _mapping;
   });
+
   console.log("Extracted mapping:", result);
   return result;
 }
@@ -309,7 +310,7 @@ async function reverseReplacement(replacement: Replacement): Promise<Replacement
     sections: reversedSections.concat(overridingSections),
   };
 
-  console.log("Reversed replacement:", result);
+  // console.log("Reversed replacement:", result);
 
   return result;
 }
