@@ -15,7 +15,7 @@ const DEFAULT = {
 function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
-        const mappings = yield getMappings(dictionary, settings.sourceLanguage);
+        const mappings = yield getTranslations(dictionary, settings.sourceLanguage);
         const exceptions = yield parseExceptions(settings.serializedExceptions);
         yield replaceAllTextsAndSave(mappings, exceptions);
     });
@@ -46,7 +46,7 @@ function parseDictionary(serializedDictionary, sourceLanguage) {
         return { header, rows };
     });
 }
-function getMappings(dictionary, sourceLanguage) {
+function getTranslations(dictionary, sourceLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
         let sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
         if (sourceColumnIndex == -1) {
@@ -54,12 +54,18 @@ function getMappings(dictionary, sourceLanguage) {
         }
         const result = dictionary.header.map((language, languageIdx) => {
             const _mapping = {};
+            const translation = {
+                sourceLanguage: language,
+                targetLanguage: dictionary.header[(languageIdx + 1) % dictionary.header.length],
+                mapping: _mapping,
+            };
             dictionary.rows.forEach((row, idx) => {
                 const sourceWord = row[languageIdx];
                 const targetWord = row[(languageIdx + 1) % dictionary.header.length];
                 _mapping[sourceWord] = targetWord;
             });
-            return _mapping;
+            console.log(translation);
+            return translation;
         });
         console.log("Extracted mapping:", result);
         return result;
@@ -85,7 +91,7 @@ function replaceAllTextsAndSave(mappings, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
         for (const mapping of mappings) {
-            let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))).filter((r) => r !== null);
+            let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping.mapping, exceptions))).filter((r) => r !== null);
             let failures = replacements.filter((r) => "error" in r);
             if (failures.length == 0) {
                 replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
@@ -98,8 +104,8 @@ function replaceAllTextsAndSave(mappings, exceptions) {
             replacements.forEach((replacement) => __awaiter(this, void 0, void 0, function* () {
                 if ("node" in replacement) {
                     let bytes = yield replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
-                    // let name = await getLanguage(mapping);
-                    content.push(bytes);
+                    let lang = mapping.sourceLanguage;
+                    content.push({ bytes, lang });
                     if (!content) {
                         return;
                     }
@@ -418,6 +424,7 @@ function findSelectedTextNodes() {
                 root.findAll((node) => node.type === "TEXT").forEach((node) => result.push(node));
             }
         });
+        console.log(result);
         return result;
     });
 }
@@ -548,9 +555,9 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         yield translateSelectionAndSave(message.settings)
             .then(() => __awaiter(this, void 0, void 0, function* () {
             figma.ui.postMessage({ type: "content", content });
-            figma.notify("Done");
             figma.ui.postMessage({ type: "translation-failures", failures: [] });
             figma.ui.postMessage({ type: "ready" });
+            figma.notify("Done");
         }))
             .catch((reason) => {
             if ("error" in reason) {

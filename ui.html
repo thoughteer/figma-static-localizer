@@ -466,12 +466,14 @@
     referrerpolicy="no-referrer"
   ></script>
   <script type="module">
-    var zip = new JSZip();
     var fields = null;
     var selectionFonts = [];
     var availableFonts = [];
     onmessage = (event) => {
       const message = event.data.pluginMessage;
+      if (!message) {
+        return;
+      }
 
       if (message.type === "settings") {
         fields = Object.keys(message.settings);
@@ -485,11 +487,11 @@
         document.getElementById("translate").disabled = false;
       } else if (message.type === "content") {
         let zip = new JSZip();
-        for (let data of message.content) {
-          let blob = new Blob([data], { type: "image/png" });
-          console.log(blob)
-          zip.file(`example.png`, blob, { base64: false });
-        }
+        message.content.forEach((data, idx) => {
+          let { bytes, lang } = data;
+          let blob = new Blob([bytes]);
+          zip.folder(`${lang}`).file(`${lang}-${idx}.png`, blob);
+        });
         zip.generateAsync({ type: "blob" }).then((content) => {
           const blobURL = window.URL.createObjectURL(content);
           const link = document.createElement("a");

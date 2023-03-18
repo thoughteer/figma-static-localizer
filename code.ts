@@ -35,6 +35,12 @@ type Mapping = {
   [source: string]: string;
 };
 
+type Translations = {
+  sourceLanguage: string;
+  targetLanguage: string;
+  mapping: Mapping;
+};
+
 type Section = {
   from: number;
   to: number;
@@ -58,7 +64,7 @@ type ReplacementAttempt = Replacement | ReplacementFailure;
 
 async function translateSelectionAndSave(settings: Settings): Promise<void> {
   const dictionary = await parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
-  const mappings = await getMappings(dictionary, settings.sourceLanguage);
+  const mappings = await getTranslations(dictionary, settings.sourceLanguage);
   const exceptions = await parseExceptions(settings.serializedExceptions);
   await replaceAllTextsAndSave(mappings, exceptions);
 }
@@ -92,7 +98,7 @@ async function parseDictionary(serializedDictionary: string, sourceLanguage: str
   return { header, rows };
 }
 
-async function getMappings(dictionary: Dictionary, sourceLanguage: string): Promise<Mapping[]> {
+async function getTranslations(dictionary: Dictionary, sourceLanguage: string): Promise<Translations[]> {
   let sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
   if (sourceColumnIndex == -1) {
     throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
@@ -100,12 +106,18 @@ async function getMappings(dictionary: Dictionary, sourceLanguage: string): Prom
 
   const result = dictionary.header.map((language, languageIdx) => {
     const _mapping: Mapping = {};
+    const translation: Translations = {
+      sourceLanguage: language,
+      targetLanguage: dictionary.header[(languageIdx + 1) % dictionary.header.length],
+      mapping: _mapping,
+    };
     dictionary.rows.forEach((row, idx) => {
       const sourceWord: string = row[languageIdx];
       const targetWord: string = row[(languageIdx + 1) % dictionary.header.length];
       _mapping[sourceWord] = targetWord;
     });
-    return _mapping;
+    console.log(translation);
+    return translation;
   });
 
   console.log("Extracted mapping:", result);
@@ -127,11 +139,11 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
 
 let content = [];
 
-async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[]): Promise<void> {
+async function replaceAllTextsAndSave(mappings: Translations[], exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
   for (const mapping of mappings) {
     let replacements = (
-      await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping, exceptions))
+      await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping.mapping, exceptions))
     ).filter((r) => r !== null);
     let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
     if (failures.length == 0) {
@@ -146,8 +158,8 @@ async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[])
     replacements.forEach(async (replacement) => {
       if ("node" in replacement) {
         let bytes = await replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
-        // let name = await getLanguage(mapping);
-        content.push(bytes);
+        let lang = mapping.sourceLanguage;
+        content.push({ bytes, lang });
         if (!content) {
           return;
         }
@@ -491,6 +503,7 @@ async function loadFontsForReplacement(replacement: Replacement): Promise<void> 
 
 async function findSelectedTextNodes(): Promise<TextNode[]> {
   const result: TextNode[] = [];
+
   figma.currentPage.selection.forEach((root) => {
     if (root.type === "TEXT") {
       result.push(root as TextNode);
@@ -498,6 +511,7 @@ async function findSelectedTextNodes(): Promise<TextNode[]> {
       (root as ChildrenMixin).findAll((node) => node.type === "TEXT").forEach((node) => result.push(node as TextNode));
     }
   });
+  console.log(result);
   return result;
 }
 
@@ -640,10 +654,11 @@ figma.ui.onmessage = async (message) => {
   } else if (message.type === "translate-and-save") {
     await translateSelectionAndSave(message.settings)
       .then(async () => {
+
         figma.ui.postMessage({ type: "content", content });
-        figma.notify("Done");
         figma.ui.postMessage({ type: "translation-failures", failures: [] });
         figma.ui.postMessage({ type: "ready" });
+        figma.notify("Done");
       })
       .catch((reason) => {
         if ("error" in reason) {
