@@ -80,6 +80,7 @@ function parseExceptions(serializedExceptions) {
         });
     });
 }
+let content = [];
 function replaceAllTextsAndSave(mappings, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
@@ -96,7 +97,12 @@ function replaceAllTextsAndSave(mappings, exceptions) {
             }
             replacements.forEach((replacement) => __awaiter(this, void 0, void 0, function* () {
                 if ("node" in replacement) {
-                    let bytes = yield replacement.node.exportAsync({ format: "PNG" });
+                    let bytes = yield replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
+                    // let name = await getLanguage(mapping);
+                    content.push(bytes);
+                    if (!content) {
+                        return;
+                    }
                 }
             }));
             yield mapWithRateLimit(replacements, 250, replaceText);
@@ -541,11 +547,6 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     else if (message.type === "translate-and-save") {
         yield translateSelectionAndSave(message.settings)
             .then(() => __awaiter(this, void 0, void 0, function* () {
-            let node = figma.currentPage.selection[0];
-            let content = yield node.exportAsync({ format: "PNG" }).catch(console.error);
-            if (!content) {
-                return;
-            }
             figma.ui.postMessage({ type: "content", content });
             figma.notify("Done");
             figma.ui.postMessage({ type: "translation-failures", failures: [] });

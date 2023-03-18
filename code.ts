@@ -1,4 +1,3 @@
-
 type Settings = {
   serializedDictionary: string;
   serializedExceptions: string;
@@ -126,6 +125,8 @@ async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> 
     });
 }
 
+let content = [];
+
 async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
   for (const mapping of mappings) {
@@ -144,7 +145,12 @@ async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[])
 
     replacements.forEach(async (replacement) => {
       if ("node" in replacement) {
-        let bytes = await replacement.node.exportAsync({ format: "PNG" });
+        let bytes = await replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
+        // let name = await getLanguage(mapping);
+        content.push(bytes);
+        if (!content) {
+          return;
+        }
       }
     });
     await mapWithRateLimit(replacements, 250, replaceText);
@@ -156,7 +162,6 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
   if (keepAsIs(content, exceptions)) {
     return null;
   }
-
   const sections = sliceIntoSections(node);
   const suggestions = suggest(node, content, sections, mapping, exceptions);
 
@@ -635,11 +640,6 @@ figma.ui.onmessage = async (message) => {
   } else if (message.type === "translate-and-save") {
     await translateSelectionAndSave(message.settings)
       .then(async () => {
-        let node = figma.currentPage.selection[0];
-        let content = await node.exportAsync({ format: "PNG" }).catch(console.error);
-        if (!content) {
-          return;
-        }
         figma.ui.postMessage({ type: "content", content });
         figma.notify("Done");
         figma.ui.postMessage({ type: "translation-failures", failures: [] });

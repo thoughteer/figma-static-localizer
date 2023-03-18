@@ -459,11 +459,14 @@
     <div class="divider"></div>
     <div id="translationFailures"></div>
   </div>
-
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+    integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
   <script type="module">
-    import JSZip from "./node_modules/jszip/dist/jszip";
     var zip = new JSZip();
-    console.log(zip);
     var fields = null;
     var selectionFonts = [];
     var availableFonts = [];
@@ -481,13 +484,20 @@
       } else if (message.type === "ready") {
         document.getElementById("translate").disabled = false;
       } else if (message.type === "content") {
-        let blob = new Blob([message.content], { type: "image/png" });
-        console.log(blob);
-        let file = URL.createObjectURL(blob);
-        let a = document.createElement("a");
-        a.download = "mydata.png";
-        a.href = file;
-        a.click();
+        let zip = new JSZip();
+        for (let data of message.content) {
+          let blob = new Blob([data], { type: "image/png" });
+          console.log(blob)
+          zip.file(`example.png`, blob, { base64: false });
+        }
+        zip.generateAsync({ type: "blob" }).then((content) => {
+          const blobURL = window.URL.createObjectURL(content);
+          const link = document.createElement("a");
+          link.className = "button button--primary";
+          link.href = blobURL;
+          link.download = "export.zip";
+          link.click();
+        });
       }
     };
 
