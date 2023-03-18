@@ -460,7 +460,10 @@
     <div id="translationFailures"></div>
   </div>
 
-  <script>
+  <script type="module">
+    import JSZip from "./node_modules/jszip/dist/jszip";
+    var zip = new JSZip();
+    console.log(zip);
     var fields = null;
     var selectionFonts = [];
     var availableFonts = [];

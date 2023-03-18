@@ -97,8 +97,6 @@ function replaceAllTextsAndSave(mappings, exceptions) {
             replacements.forEach((replacement) => __awaiter(this, void 0, void 0, function* () {
                 if ("node" in replacement) {
                     let bytes = yield replacement.node.exportAsync({ format: "PNG" });
-                    // figma.createImage(bytes)
-                    console.log(figma.createImage(bytes));
                 }
             }));
             yield mapWithRateLimit(replacements, 250, replaceText);

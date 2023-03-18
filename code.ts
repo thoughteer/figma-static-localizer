@@ -1,3 +1,4 @@
+
 type Settings = {
   serializedDictionary: string;
   serializedExceptions: string;
@@ -140,11 +141,10 @@ async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[])
       console.log("Failures:", failures);
       throw { error: "found some untranslatable nodes", failures };
     }
+
     replacements.forEach(async (replacement) => {
       if ("node" in replacement) {
         let bytes = await replacement.node.exportAsync({ format: "PNG" });
-        // figma.createImage(bytes)
-        console.log(figma.createImage(bytes));
       }
     });
     await mapWithRateLimit(replacements, 250, replaceText);
