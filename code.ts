@@ -140,8 +140,14 @@ async function replaceAllTextsAndSave(mappings: Mapping[], exceptions: RegExp[])
       console.log("Failures:", failures);
       throw { error: "found some untranslatable nodes", failures };
     }
-
-    await mapWithRateLimit(replacements, 50, replaceText);
+    replacements.forEach(async (replacement) => {
+      if ("node" in replacement) {
+        let bytes = await replacement.node.exportAsync({ format: "PNG" });
+        // figma.createImage(bytes)
+        console.log(figma.createImage(bytes));
+      }
+    });
+    await mapWithRateLimit(replacements, 250, replaceText);
   }
 }
 
@@ -626,9 +632,15 @@ figma.ui.onmessage = async (message) => {
     console.log("Loaded settings:", DEFAULT);
     figma.ui.postMessage({ type: "settings", settings });
     figma.ui.postMessage({ type: "ready" });
-  } else if (message.type === "translate") {
+  } else if (message.type === "translate-and-save") {
     await translateSelectionAndSave(message.settings)
-      .then(() => {
+      .then(async () => {
+        let node = figma.currentPage.selection[0];
+        let content = await node.exportAsync({ format: "PNG" }).catch(console.error);
+        if (!content) {
+          return;
+        }
+        figma.ui.postMessage({ type: "content", content });
         figma.notify("Done");
         figma.ui.postMessage({ type: "translation-failures", failures: [] });
         figma.ui.postMessage({ type: "ready" });

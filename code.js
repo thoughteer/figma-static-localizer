@@ -48,15 +48,15 @@ function parseDictionary(serializedDictionary, sourceLanguage) {
 }
 function getMappings(dictionary, sourceLanguage) {
     return __awaiter(this, void 0, void 0, function* () {
-        const sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
+        let sourceColumnIndex = dictionary.header.indexOf(sourceLanguage);
         if (sourceColumnIndex == -1) {
             throw { error: sourceLanguage + " not listed in [" + dictionary.header + "]" };
         }
-        const result = dictionary.header.map((language, idx) => {
+        const result = dictionary.header.map((language, languageIdx) => {
             const _mapping = {};
-            dictionary.rows.forEach((row) => {
-                const sourceWord = row[sourceColumnIndex];
-                const targetWord = row[idx];
+            dictionary.rows.forEach((row, idx) => {
+                const sourceWord = row[languageIdx];
+                const targetWord = row[(languageIdx + 1) % dictionary.header.length];
                 _mapping[sourceWord] = targetWord;
             });
             return _mapping;
@@ -94,7 +94,14 @@ function replaceAllTextsAndSave(mappings, exceptions) {
                 console.log("Failures:", failures);
                 throw { error: "found some untranslatable nodes", failures };
             }
-            yield mapWithRateLimit(replacements, 50, replaceText);
+            replacements.forEach((replacement) => __awaiter(this, void 0, void 0, function* () {
+                if ("node" in replacement) {
+                    let bytes = yield replacement.node.exportAsync({ format: "PNG" });
+                    // figma.createImage(bytes)
+                    console.log(figma.createImage(bytes));
+                }
+            }));
+            yield mapWithRateLimit(replacements, 250, replaceText);
         }
     });
 }
@@ -243,7 +250,7 @@ function reverseReplacement(replacement) {
             baseStyle: replacement.baseStyle,
             sections: reversedSections.concat(overridingSections),
         };
-        console.log("Reversed replacement:", result);
+        // console.log("Reversed replacement:", result);
         return result;
     });
 }
@@ -533,13 +540,19 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
         figma.ui.postMessage({ type: "settings", settings });
         figma.ui.postMessage({ type: "ready" });
     }
-    else if (message.type === "translate") {
+    else if (message.type === "translate-and-save") {
         yield translateSelectionAndSave(message.settings)
-            .then(() => {
+            .then(() => __awaiter(this, void 0, void 0, function* () {
+            let node = figma.currentPage.selection[0];
+            let content = yield node.exportAsync({ format: "PNG" }).catch(console.error);
+            if (!content) {
+                return;
+            }
+            figma.ui.postMessage({ type: "content", content });
             figma.notify("Done");
             figma.ui.postMessage({ type: "translation-failures", failures: [] });
             figma.ui.postMessage({ type: "ready" });
-        })
+        }))
             .catch((reason) => {
             if ("error" in reason) {
                 figma.notify("Translation failed: " + reason.error);

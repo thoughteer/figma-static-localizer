@@ -464,7 +464,6 @@
     var fields = null;
     var selectionFonts = [];
     var availableFonts = [];
-
     onmessage = (event) => {
       const message = event.data.pluginMessage;
 
@@ -478,6 +477,14 @@
         updateTranslationFailures(message.failures);
       } else if (message.type === "ready") {
         document.getElementById("translate").disabled = false;
+      } else if (message.type === "content") {
+        let blob = new Blob([message.content], { type: "image/png" });
+        console.log(blob);
+        let file = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.download = "mydata.png";
+        a.href = file;
+        a.click();
       }
     };
 
@@ -493,7 +500,7 @@
     document.getElementById("translate").onclick = () => {
       document.getElementById("translate").disabled = true;
       const settings = getSettings();
-      parent.postMessage({ pluginMessage: { type: "translate", settings } }, "*");
+      parent.postMessage({ pluginMessage: { type: "translate-and-save", settings } }, "*");
     };
 
     parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
