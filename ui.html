@@ -488,9 +488,9 @@
       } else if (message.type === "content") {
         let zip = new JSZip();
         message.content.forEach((data, idx) => {
-          let { bytes, lang } = data;
-          let blob = new Blob([bytes]);
-          zip.folder(`${lang}`).file(`${lang}-${idx}.png`, blob);
+          let { lang, bytesMainImage, name } = data;
+          let blob = new Blob([bytesMainImage]);
+          zip.folder(`${lang}`).file(`${lang}-${name}.png`, blob);
         });
         zip.generateAsync({ type: "blob" }).then((content) => {
           const blobURL = window.URL.createObjectURL(content);

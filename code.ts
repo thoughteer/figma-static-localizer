@@ -5,7 +5,7 @@ type Settings = {
 };
 
 const DEFAULT: Settings = {
-  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!",
+  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
   serializedExceptions: "",
   sourceLanguage: "RU",
 };
@@ -66,6 +66,7 @@ async function translateSelectionAndSave(settings: Settings): Promise<void> {
   const dictionary = await parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
   const mappings = await getTranslations(dictionary, settings.sourceLanguage);
   const exceptions = await parseExceptions(settings.serializedExceptions);
+
   await replaceAllTextsAndSave(mappings, exceptions);
 }
 
@@ -141,6 +142,7 @@ let content = [];
 
 async function replaceAllTextsAndSave(mappings: Translations[], exceptions: RegExp[]): Promise<void> {
   const textNodes = await findSelectedTextNodes();
+
   for (const mapping of mappings) {
     let replacements = (
       await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping.mapping, exceptions))
@@ -154,15 +156,15 @@ async function replaceAllTextsAndSave(mappings: Translations[], exceptions: RegE
       console.log("Failures:", failures);
       throw { error: "found some untranslatable nodes", failures };
     }
-
-    replacements.forEach(async (replacement) => {
-      if ("node" in replacement) {
-        let bytes = await replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
-        let lang = mapping.sourceLanguage;
-        content.push({ bytes, lang });
-        if (!content) {
-          return;
-        }
+    const selected = figma.currentPage.selection;
+    console.log(selected);
+    selected.forEach(async (node, index) => {
+      let bytesMainImage = await node.exportAsync({ format: "PNG" });
+      let name = node.name;
+      let lang = mapping.sourceLanguage;
+      content.push({ bytesMainImage, lang, name });
+      if (!content) {
+        return;
       }
     });
     await mapWithRateLimit(replacements, 250, replaceText);
@@ -500,7 +502,6 @@ async function loadFontsForReplacement(replacement: Replacement): Promise<void> 
 }
 
 // Utilities
-
 async function findSelectedTextNodes(): Promise<TextNode[]> {
   const result: TextNode[] = [];
 
@@ -644,7 +645,6 @@ function mapWithRateLimit<X, Y>(array: X[], rateLimit: number, mapper: (x: X) =>
 }
 
 figma.showUI(__html__, { width: 400, height: 400 });
-
 figma.ui.onmessage = async (message) => {
   if (message.type === "load-settings") {
     const settings = DEFAULT;
@@ -654,7 +654,6 @@ figma.ui.onmessage = async (message) => {
   } else if (message.type === "translate-and-save") {
     await translateSelectionAndSave(message.settings)
       .then(async () => {
-
         figma.ui.postMessage({ type: "content", content });
         figma.ui.postMessage({ type: "translation-failures", failures: [] });
         figma.ui.postMessage({ type: "ready" });

@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const DEFAULT = {
-    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!",
+    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
     serializedExceptions: "",
     sourceLanguage: "RU",
 };
@@ -101,14 +101,15 @@ function replaceAllTextsAndSave(mappings, exceptions) {
                 console.log("Failures:", failures);
                 throw { error: "found some untranslatable nodes", failures };
             }
-            replacements.forEach((replacement) => __awaiter(this, void 0, void 0, function* () {
-                if ("node" in replacement) {
-                    let bytes = yield replacement.node.exportAsync({ format: "PNG" }).catch(console.error);
-                    let lang = mapping.sourceLanguage;
-                    content.push({ bytes, lang });
-                    if (!content) {
-                        return;
-                    }
+            const selected = figma.currentPage.selection;
+            console.log(selected);
+            selected.forEach((node, index) => __awaiter(this, void 0, void 0, function* () {
+                let bytesMainImage = yield node.exportAsync({ format: "PNG" });
+                let name = node.name;
+                let lang = mapping.sourceLanguage;
+                content.push({ bytesMainImage, lang, name });
+                if (!content) {
+                    return;
                 }
             }));
             yield mapWithRateLimit(replacements, 250, replaceText);
