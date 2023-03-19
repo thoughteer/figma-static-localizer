@@ -13,7 +13,7 @@ var SettingsManager;
         serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
         serializedExceptions: "",
         sourceLanguage: "RU",
-        serializedFontSubstitutions: "[]",
+        imageExtensionIsJPG: false,
     };
     const FIELDS = Object.keys(DEFAULT);
     const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
@@ -37,12 +37,14 @@ var SettingsManager;
     }
     SettingsManager.save = save;
 })(SettingsManager || (SettingsManager = {}));
+let content = [];
 function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
+        content = [];
         const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
         const mappings = yield getTranslations(dictionary, settings.sourceLanguage);
         const exceptions = yield parseExceptions(settings.serializedExceptions);
-        yield replaceAllTextsAndSave(mappings, exceptions);
+        yield replaceAllTextsAndSave(mappings, exceptions, settings.imageExtensionIsJPG);
     });
 }
 function parseDictionary(serializedDictionary, sourceLanguage) {
@@ -60,7 +62,6 @@ function parseDictionary(serializedDictionary, sourceLanguage) {
         const header = unshiftSelectedItem(table[0], sourceColumnIndex);
         const expectedColumnCount = header.length;
         const rows = table.slice(1, table.length).map((row) => unshiftSelectedItem(row, sourceColumnIndex));
-        console.log("Dictionary:", { header, rows });
         rows.forEach((row, index) => {
             if (row.length != expectedColumnCount) {
                 throw {
@@ -89,10 +90,8 @@ function getTranslations(dictionary, sourceLanguage) {
                 const targetWord = row[(languageIdx + 1) % dictionary.header.length];
                 _mapping[sourceWord] = targetWord;
             });
-            console.log(translation);
             return translation;
         });
-        console.log("Extracted mapping:", result);
         return result;
     });
 }
@@ -111,13 +110,11 @@ function parseExceptions(serializedExceptions) {
         });
     });
 }
-let content = [];
-function replaceAllTextsAndSave(mappings, exceptions) {
+function replaceAllTextsAndSave(mappings, exceptions, imageExtensionIsJPG) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
         for (const mapping of mappings) {
             let replacements = (yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping, exceptions))).filter((r) => r !== null);
-            console.log(replacements);
             let failures = replacements.filter((r) => "error" in r);
             // если RTL
             // if (failures.length == 0) {
@@ -129,12 +126,12 @@ function replaceAllTextsAndSave(mappings, exceptions) {
                 throw { error: "found some untranslatable nodes", failures };
             }
             const selected = figma.currentPage.selection;
-            console.log(selected);
             Promise.all(selected.map((node, index) => __awaiter(this, void 0, void 0, function* () {
-                let bytesMainImage = yield node.exportAsync({ format: "PNG" });
+                let bytesMainImage = yield node.exportAsync({ format: imageExtensionIsJPG ? "JPG" : "PNG" });
                 let name = node.name;
                 let lang = mapping.sourceLanguage;
-                content.push({ bytesMainImage, lang, name });
+                let imageExtension = imageExtensionIsJPG ? "JPG" : "PNG";
+                content.push({ bytesMainImage, lang, name, imageExtension });
                 if (!content) {
                     return;
                 }
@@ -211,7 +208,6 @@ function computeReplacement(node, mapping, exceptions) {
         if (result.baseStyle === null) {
             return { nodeId: node.id, error: errorLog.join(". "), suggestions };
         }
-        console.log("Replacement:", result);
         return result;
     });
 }
@@ -288,7 +284,6 @@ function reverseReplacement(replacement) {
             baseStyle: replacement.baseStyle,
             sections: reversedSections.concat(overridingSections),
         };
-        // console.log("Reversed replacement:", result);
         return result;
     });
 }
@@ -417,7 +412,6 @@ function wrapReplacement(replacement) {
             sections: wrappedSections,
         };
         bufferNode.remove();
-        console.log("Wrapped replacement:", result);
         return result;
     });
 }
@@ -468,35 +462,6 @@ function sendSelectionFonts() {
         figma.ui.postMessage({ type: "selection-fonts", selectionFonts });
     });
 }
-function substituteFontsInSelection(settings) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const substitutions = JSON.parse(settings.serializedFontSubstitutions);
-        const fontMapping = new Map();
-        for (let substitution of substitutions) {
-            const sourceFontId = JSON.stringify(substitution.sourceFont);
-            fontMapping.set(sourceFontId, substitution.targetFont);
-            yield figma.loadFontAsync(substitution.targetFont);
-        }
-        const textNodes = yield findSelectedTextNodes();
-        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
-            if (node.characters === "") {
-                return;
-            }
-            const sections = sliceIntoSections(node);
-            for (let { style } of sections) {
-                yield figma.loadFontAsync(style.fontName);
-            }
-            for (let { from, to, style } of sections) {
-                const fontId = JSON.stringify(style.fontName);
-                if (fontMapping.has(fontId)) {
-                    const newStyle = Object.assign({}, style);
-                    newStyle.fontName = fontMapping.get(fontId);
-                    setSectionStyle(node, from, to, newStyle);
-                }
-            }
-        }));
-    });
-}
 // Utilities
 function findSelectedTextNodes() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -509,7 +474,6 @@ function findSelectedTextNodes() {
                 root.findAll((node) => node.type === "TEXT").forEach((node) => result.push(node));
             }
         });
-        console.log(result);
         return result;
     });
 }
@@ -632,7 +596,6 @@ figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     if (message.type === "load-settings") {
         const settings = yield SettingsManager.load();
-        console.log("Loaded settings:", settings);
         figma.ui.postMessage({ type: "settings", settings });
         figma.ui.postMessage({ type: "ready" });
     }
@@ -650,23 +613,6 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
                 if ("failures" in reason) {
                     figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
                 }
-            }
-            else {
-                figma.notify(reason.toString());
-            }
-            figma.ui.postMessage({ type: "ready" });
-        });
-    }
-    else if (message.type === "substitute-fonts") {
-        yield SettingsManager.save(message.settings);
-        yield substituteFontsInSelection(message.settings)
-            .then(() => sendSelectionFonts().then(() => {
-            figma.notify("Done");
-            figma.ui.postMessage({ type: "ready" });
-        }))
-            .catch((reason) => {
-            if ("error" in reason) {
-                figma.notify("Font substitution failed: " + reason.error);
             }
             else {
                 figma.notify(reason.toString());

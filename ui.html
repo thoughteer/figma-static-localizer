@@ -376,12 +376,61 @@
   a {
     color: #18a0fb;
   }
+  .switch {
+    position: relative;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: -4px;
+    left: -5px;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: 0.4s;
+    transition: 0.4s;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 15px;
+    width: 15px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    -webkit-transition: 0.4s;
+    transition: 0.4s;
+  }
+
+  input:checked + .slider {
+    background-color: #2196f3;
+  }
+
+  input:focus + .slider {
+    box-shadow: 0 0 1px #2196f3;
+  }
+
+  input:checked + .slider:before {
+    -webkit-transform: translateX(16px);
+    -ms-transform: translateX(16px);
+    transform: translateX(16px);
+  }
+
+  .slider.round {
+    border-radius: 34px;
+    height: 23px;
+    width: 40px;
+  }
+
+  .slider.round:before {
+    border-radius: 50%;
+  }
 </style>
 
 <body>
   <div class="row">
     <div class="tab tab--active" with="translation">Translation</div>
-    <div class="tab" with="fonts">Fonts</div>
   </div>
 
   <div class="container" id="translation">
@@ -408,7 +457,7 @@
         <input type="file" id="dictionaryFile" />
       </div>
       <div class="row">
-        <textarea class="textarea" id="serializedDictionary" wrap="off"></textarea>
+        <textarea class="textarea" rows="4" id="serializedDictionary" wrap="off"></textarea>
       </div>
     </div>
     <div class="block">
@@ -449,6 +498,15 @@
           >What's a regular expression?</a
         >
       </div>
+      <div class="row">
+        <div class="label">To JPG:</div>
+      </div>
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="imageExtensionIsJPG" />
+          <span class="slider round"></span>
+        </label>
+      </div>
     </div>
     <div class="block" style="margin-top: 16px">
       <div class="row">
@@ -460,66 +518,7 @@
     <div class="divider"></div>
     <div id="translationFailures"></div>
   </div>
-  <div class="container" id="fonts">
-    <div class="block row">
-      <div class="label">Substitutions</div>
-      <div onclick="downloadFontSubstitutions();" class="file" style="margin-left: auto">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="feather feather-download"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-      </div>
-      <label class="file" for="fontSubstitutionsFile">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          widht="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-      </label>
-      <input type="file" id="fontSubstitutionsFile" />
-      <textarea id="serializedFontSubstitutions" style="display: none">[]</textarea>
-    </div>
-    <div class="block row">
-      <select class="select" id="sourceFontSelector"></select>
-      <div class="label">&rarr;</div>
-      <select class="select" id="targetFontSelector"></select>
-      <div class="label">&nbsp;</div>
-      <button class="button button--secondary" id="defineFontSubstitution">&checkmark;</button>
-    </div>
-    <div class="block container" id="fontSubstitutions"></div>
-    <div class="row">
-      <button
-        class="button button--primary"
-        id="substituteFonts"
-        disabled
-        style="margin-left: auto; margin-right: auto"
-      >
-        Substitute fonts
-      </button>
-    </div>
-  </div>
+
   <script
     src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
     integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
@@ -528,8 +527,6 @@
   ></script>
   <script type="module">
     var fields = null;
-    var selectionFonts = [];
-    var availableFonts = [];
     onmessage = (event) => {
       const message = event.data.pluginMessage;
       if (!message) {
@@ -538,6 +535,7 @@
 
       if (message.type === "settings") {
         fields = Object.keys(message.settings);
+
         fields.forEach((field) => {
           const element = document.getElementById(field);
           element.value = message.settings[field];
@@ -549,9 +547,9 @@
       } else if (message.type === "content") {
         let zip = new JSZip();
         message.content.forEach((data, idx) => {
-          let { lang, bytesMainImage, name } = data;
+          let { lang, bytesMainImage, name, imageExtension } = data;
           let blob = new Blob([bytesMainImage]);
-          zip.folder(`${lang}`).file(`${lang}-${name}.png`, blob);
+          zip.folder(`${lang}`).file(`${name}.${imageExtension}`, blob);
         });
         zip.generateAsync({ type: "blob" }).then((content) => {
           const blobURL = window.URL.createObjectURL(content);
@@ -580,25 +578,12 @@
     };
 
     parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
-    parent.postMessage({ pluginMessage: { type: "load-available-fonts" } }, "*");
-    parent.postMessage({ pluginMessage: { type: "load-selection-fonts" } }, "*");
-
-    document.getElementById("defineFontSubstitution").onclick = defineFontSubstitution;
-    document.getElementById("substituteFonts").onclick = () => {
-      document.getElementById("substituteFonts").disabled = true;
-      const settings = getSettings();
-      parent.postMessage({ pluginMessage: { type: "substitute-fonts", settings } }, "*");
-    };
-
-    parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
-    parent.postMessage({ pluginMessage: { type: "load-available-fonts" } }, "*");
-    parent.postMessage({ pluginMessage: { type: "load-selection-fonts" } }, "*");
 
     function getSettings() {
       const result = {};
       fields.forEach((field) => {
         const element = document.getElementById(field);
-        if (element.hasAttribute("checked")) {
+        if (element.type === "checkbox") {
           result[field] = element.checked;
         } else {
           result[field] = element.value;
@@ -614,7 +599,6 @@
       }
       const reader = new FileReader();
       reader.onload = (e) => {
-        console.log(e.target.result);
         document.getElementById(holderId).value = e.target.result;
         if (callback !== undefined) {
           callback.apply();
@@ -681,92 +665,5 @@
     function focusNode(id) {
       parent.postMessage({ pluginMessage: { type: "focus-node", id } }, "*");
     }
-    function loadFontSubstitutions() {
-      return JSON.parse(document.getElementById("serializedFontSubstitutions").value);
-    }
-
-    function saveFontSubstitutions(substitutions) {
-      document.getElementById("serializedFontSubstitutions").value = JSON.stringify(substitutions);
-    }
-
-    function defineFontSubstitution() {
-      const sourceFont = JSON.parse(document.getElementById("sourceFontSelector").value);
-      const targetFont = JSON.parse(document.getElementById("targetFontSelector").value);
-      const substitutions = loadFontSubstitutions();
-      let injected = false;
-      for (let substitution of substitutions) {
-        if (
-          substitution.sourceFont.family === sourceFont.family &&
-          substitution.sourceFont.style === sourceFont.style
-        ) {
-          substitution.targetFont = targetFont;
-          injected = true;
-          break;
-        }
-      }
-      if (!injected) {
-        substitutions.push({ sourceFont, targetFont });
-      }
-      saveFontSubstitutions(substitutions);
-      renderFontSubstitutions();
-    }
-
-    function renderFontSelector(selector, fonts) {
-      selector.innerHTML = "";
-      for (let font of fonts) {
-        const option = document.createElement("option");
-        option.value = JSON.stringify(font);
-        option.innerText = `${font.family} (${font.style})`;
-        selector.appendChild(option);
-      }
-    }
-
-    function renderFontSubstitutions() {
-      const substitutions = loadFontSubstitutions();
-      const holder = document.getElementById("fontSubstitutions");
-      holder.innerHTML = "";
-      for (let sourceFont of selectionFonts) {
-        let targetFont = sourceFont;
-        for (let substitution of substitutions) {
-          if (
-            substitution.sourceFont.family === sourceFont.family &&
-            substitution.sourceFont.style === sourceFont.style
-          ) {
-            targetFont = substitution.targetFont;
-            break;
-          }
-        }
-        const entry = document.createElement("div");
-        entry.className = "row";
-        entry.innerHTML = `
-                    <div style="display: flex; justify-content: flex-end; width: 100%;">${sourceFont.family} (${sourceFont.style})</div>
-                    <div>&rarr;</div>
-                    <div style="display: flex; justify-content: flex-begin; width: 100%;">${targetFont.family} (${targetFont.style})</div>
-                `;
-        holder.appendChild(entry);
-      }
-    }
-
-    function downloadFontSubstitutions() {
-      const data = document.getElementById("serializedFontSubstitutions").value;
-      const a = document.createElement("a");
-      a.href = "data:application/json," + encodeURIComponent(data);
-      a.setAttribute("download", "fontSubstitutions.json");
-      a.click();
-    }
-
-    [].forEach.call(document.getElementsByClassName("tab"), (tab) => {
-      if (tab.className === "tab") {
-        document.getElementById(tab.getAttribute("with")).style.display = "none";
-      }
-      tab.onclick = () => {
-        [].forEach.call(document.getElementsByClassName("tab"), (tabToHide) => {
-          tabToHide.className = "tab";
-          document.getElementById(tabToHide.getAttribute("with")).style.display = "none";
-        });
-        tab.className = "tab tab--active";
-        document.getElementById(tab.getAttribute("with")).style.display = "flex";
-      };
-    });
   </script>
 </body>
