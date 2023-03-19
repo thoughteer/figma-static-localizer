@@ -7,11 +7,36 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-const DEFAULT = {
-    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
-    serializedExceptions: "",
-    sourceLanguage: "RU",
-};
+var SettingsManager;
+(function (SettingsManager) {
+    const DEFAULT = {
+        serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
+        serializedExceptions: "",
+        sourceLanguage: "RU",
+        serializedFontSubstitutions: "[]",
+    };
+    const FIELDS = Object.keys(DEFAULT);
+    const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
+    function load() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const result = {};
+            const promises = FIELDS.map((field) => figma.clientStorage
+                .getAsync(CLIENT_STORAGE_PREFIX + field)
+                .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value })));
+            (yield Promise.all(promises)).forEach(({ field, value }) => {
+                result[field] = value;
+            });
+            return result;
+        });
+    }
+    SettingsManager.load = load;
+    function save(settings) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield Promise.all(FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
+        });
+    }
+    SettingsManager.save = save;
+})(SettingsManager || (SettingsManager = {}));
 function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
@@ -91,19 +116,21 @@ function replaceAllTextsAndSave(mappings, exceptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
         for (const mapping of mappings) {
-            let replacements = (yield mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping.mapping, exceptions))).filter((r) => r !== null);
+            let replacements = (yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping, exceptions))).filter((r) => r !== null);
+            console.log(replacements);
             let failures = replacements.filter((r) => "error" in r);
-            if (failures.length == 0) {
-                replacements = yield mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-                failures = replacements.filter((r) => "error" in r);
-            }
+            // если RTL
+            // if (failures.length == 0) {
+            //   replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+            //   failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
+            // }
             if (failures.length > 0) {
                 console.log("Failures:", failures);
                 throw { error: "found some untranslatable nodes", failures };
             }
             const selected = figma.currentPage.selection;
             console.log(selected);
-            selected.forEach((node, index) => __awaiter(this, void 0, void 0, function* () {
+            Promise.all(selected.map((node, index) => __awaiter(this, void 0, void 0, function* () {
                 let bytesMainImage = yield node.exportAsync({ format: "PNG" });
                 let name = node.name;
                 let lang = mapping.sourceLanguage;
@@ -111,7 +138,7 @@ function replaceAllTextsAndSave(mappings, exceptions) {
                 if (!content) {
                     return;
                 }
-            }));
+            })));
             yield mapWithRateLimit(replacements, 250, replaceText);
         }
     });
@@ -413,6 +440,63 @@ function loadFontsForReplacement(replacement) {
         yield Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
     });
 }
+// Font substitution
+function sendAvailableFonts() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const availableFonts = (yield figma.listAvailableFontsAsync()).map((f) => f.fontName);
+        figma.ui.postMessage({ type: "available-fonts", availableFonts });
+    });
+}
+function sendSelectionFonts() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const textNodes = yield findSelectedTextNodes();
+        const selectionFontIds = new Set();
+        const selectionFonts = [];
+        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
+            if (node.characters === "") {
+                return;
+            }
+            const sections = sliceIntoSections(node);
+            for (let { style } of sections) {
+                const fontId = JSON.stringify(style.fontName);
+                if (!selectionFontIds.has(fontId)) {
+                    selectionFontIds.add(fontId);
+                    selectionFonts.push(style.fontName);
+                }
+            }
+        }));
+        figma.ui.postMessage({ type: "selection-fonts", selectionFonts });
+    });
+}
+function substituteFontsInSelection(settings) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const substitutions = JSON.parse(settings.serializedFontSubstitutions);
+        const fontMapping = new Map();
+        for (let substitution of substitutions) {
+            const sourceFontId = JSON.stringify(substitution.sourceFont);
+            fontMapping.set(sourceFontId, substitution.targetFont);
+            yield figma.loadFontAsync(substitution.targetFont);
+        }
+        const textNodes = yield findSelectedTextNodes();
+        yield mapWithRateLimit(textNodes, 250, (node) => __awaiter(this, void 0, void 0, function* () {
+            if (node.characters === "") {
+                return;
+            }
+            const sections = sliceIntoSections(node);
+            for (let { style } of sections) {
+                yield figma.loadFontAsync(style.fontName);
+            }
+            for (let { from, to, style } of sections) {
+                const fontId = JSON.stringify(style.fontName);
+                if (fontMapping.has(fontId)) {
+                    const newStyle = Object.assign({}, style);
+                    newStyle.fontName = fontMapping.get(fontId);
+                    setSectionStyle(node, from, to, newStyle);
+                }
+            }
+        }));
+    });
+}
 // Utilities
 function findSelectedTextNodes() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -547,8 +631,8 @@ function mapWithRateLimit(array, rateLimit, mapper) {
 figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
     if (message.type === "load-settings") {
-        const settings = DEFAULT;
-        console.log("Loaded settings:", DEFAULT);
+        const settings = yield SettingsManager.load();
+        console.log("Loaded settings:", settings);
         figma.ui.postMessage({ type: "settings", settings });
         figma.ui.postMessage({ type: "ready" });
     }
@@ -566,6 +650,23 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
                 if ("failures" in reason) {
                     figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
                 }
+            }
+            else {
+                figma.notify(reason.toString());
+            }
+            figma.ui.postMessage({ type: "ready" });
+        });
+    }
+    else if (message.type === "substitute-fonts") {
+        yield SettingsManager.save(message.settings);
+        yield substituteFontsInSelection(message.settings)
+            .then(() => sendSelectionFonts().then(() => {
+            figma.notify("Done");
+            figma.ui.postMessage({ type: "ready" });
+        }))
+            .catch((reason) => {
+            if ("error" in reason) {
+                figma.notify("Font substitution failed: " + reason.error);
             }
             else {
                 figma.notify(reason.toString());

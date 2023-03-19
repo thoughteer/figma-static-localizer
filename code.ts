@@ -2,13 +2,38 @@ type Settings = {
   serializedDictionary: string;
   serializedExceptions: string;
   sourceLanguage: string;
+  serializedFontSubstitutions: string;
 };
 
-const DEFAULT: Settings = {
-  serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
-  serializedExceptions: "",
-  sourceLanguage: "RU",
-};
+namespace SettingsManager {
+  const DEFAULT: Settings = {
+    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
+    serializedExceptions: "",
+    sourceLanguage: "RU",
+    serializedFontSubstitutions: "[]",
+  };
+  const FIELDS = Object.keys(DEFAULT);
+  const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
+
+  export async function load(): Promise<Settings> {
+    const result = <Settings>{};
+    const promises = FIELDS.map((field) =>
+      figma.clientStorage
+        .getAsync(CLIENT_STORAGE_PREFIX + field)
+        .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value }))
+    );
+    (await Promise.all(promises)).forEach(({ field, value }) => {
+      result[field] = value;
+    });
+    return result;
+  }
+
+  export async function save(settings: Settings): Promise<void> {
+    await Promise.all(
+      FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field]))
+    );
+  }
+}
 
 // *
 
@@ -145,20 +170,22 @@ async function replaceAllTextsAndSave(mappings: Translations[], exceptions: RegE
 
   for (const mapping of mappings) {
     let replacements = (
-      await mapWithRateLimit(textNodes, 200, (node) => computeReplacement(node, mapping.mapping, exceptions))
+      await mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping, exceptions))
     ).filter((r) => r !== null);
+    console.log(replacements);
     let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-    if (failures.length == 0) {
-      replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-      failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-    }
+    // если RTL
+    // if (failures.length == 0) {
+    //   replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
+    //   failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
+    // }
     if (failures.length > 0) {
       console.log("Failures:", failures);
       throw { error: "found some untranslatable nodes", failures };
     }
     const selected = figma.currentPage.selection;
     console.log(selected);
-    selected.forEach(async (node, index) => {
+    Promise.all(selected.map(async (node, index) => {
       let bytesMainImage = await node.exportAsync({ format: "PNG" });
       let name = node.name;
       let lang = mapping.sourceLanguage;
@@ -166,7 +193,7 @@ async function replaceAllTextsAndSave(mappings: Translations[], exceptions: RegE
       if (!content) {
         return;
       }
-    });
+    }));
     await mapWithRateLimit(replacements, 250, replaceText);
   }
 }
@@ -388,7 +415,6 @@ function reverseSpecialSymbols(word: string): string {
 
 async function wrapReplacement(replacement: Replacement): Promise<ReplacementAttempt> {
   await loadFontsForReplacement(replacement);
-
   const bufferNode = replacement.node.clone();
   bufferNode.opacity = 0;
   bufferNode.characters = "";
@@ -499,6 +525,62 @@ async function replaceText(replacement: Replacement): Promise<void> {
 async function loadFontsForReplacement(replacement: Replacement): Promise<void> {
   await figma.loadFontAsync(replacement.baseStyle.fontName);
   await Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
+}
+
+// Font substitution
+
+async function sendAvailableFonts() {
+  const availableFonts = (await figma.listAvailableFontsAsync()).map((f) => f.fontName);
+  figma.ui.postMessage({ type: "available-fonts", availableFonts });
+}
+
+async function sendSelectionFonts() {
+  const textNodes = await findSelectedTextNodes();
+  const selectionFontIds = new Set();
+  const selectionFonts = [];
+  await mapWithRateLimit(textNodes, 250, async (node) => {
+    if (node.characters === "") {
+      return;
+    }
+    const sections = sliceIntoSections(node);
+    for (let { style } of sections) {
+      const fontId = JSON.stringify(style.fontName);
+      if (!selectionFontIds.has(fontId)) {
+        selectionFontIds.add(fontId);
+        selectionFonts.push(style.fontName);
+      }
+    }
+  });
+  figma.ui.postMessage({ type: "selection-fonts", selectionFonts });
+}
+
+async function substituteFontsInSelection(settings: Settings): Promise<void> {
+  const substitutions = JSON.parse(settings.serializedFontSubstitutions);
+  const fontMapping = new Map<string, FontName>();
+  for (let substitution of substitutions) {
+    const sourceFontId = JSON.stringify(substitution.sourceFont);
+    fontMapping.set(sourceFontId, substitution.targetFont);
+    await figma.loadFontAsync(substitution.targetFont);
+  }
+
+  const textNodes = await findSelectedTextNodes();
+  await mapWithRateLimit(textNodes, 250, async (node) => {
+    if (node.characters === "") {
+      return;
+    }
+    const sections = sliceIntoSections(node);
+    for (let { style } of sections) {
+      await figma.loadFontAsync(style.fontName);
+    }
+    for (let { from, to, style } of sections) {
+      const fontId = JSON.stringify(style.fontName);
+      if (fontMapping.has(fontId)) {
+        const newStyle = { ...style };
+        newStyle.fontName = fontMapping.get(fontId);
+        setSectionStyle(node, from, to, newStyle);
+      }
+    }
+  });
 }
 
 // Utilities
@@ -647,8 +729,8 @@ function mapWithRateLimit<X, Y>(array: X[], rateLimit: number, mapper: (x: X) =>
 figma.showUI(__html__, { width: 400, height: 400 });
 figma.ui.onmessage = async (message) => {
   if (message.type === "load-settings") {
-    const settings = DEFAULT;
-    console.log("Loaded settings:", DEFAULT);
+    const settings = await SettingsManager.load();
+    console.log("Loaded settings:", settings);
     figma.ui.postMessage({ type: "settings", settings });
     figma.ui.postMessage({ type: "ready" });
   } else if (message.type === "translate-and-save") {
@@ -665,6 +747,23 @@ figma.ui.onmessage = async (message) => {
           if ("failures" in reason) {
             figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
           }
+        } else {
+          figma.notify(reason.toString());
+        }
+        figma.ui.postMessage({ type: "ready" });
+      });
+  } else if (message.type === "substitute-fonts") {
+    await SettingsManager.save(message.settings);
+    await substituteFontsInSelection(message.settings)
+      .then(() =>
+        sendSelectionFonts().then(() => {
+          figma.notify("Done");
+          figma.ui.postMessage({ type: "ready" });
+        })
+      )
+      .catch((reason) => {
+        if ("error" in reason) {
+          figma.notify("Font substitution failed: " + reason.error);
         } else {
           figma.notify(reason.toString());
         }
