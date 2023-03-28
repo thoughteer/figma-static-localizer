@@ -3,7 +3,12 @@
     -webkit-box-sizing: border-box;
     box-sizing: border-box;
   }
-
+  .d-block {
+    display: block;
+  }
+  .d-none {
+    display: none;
+  }
   @font-face {
     font-family: Inter;
     font-style: normal;
@@ -436,7 +441,7 @@
   <div class="container" id="translation">
     <div class="block">
       <div class="row">
-        <div class="label">Dictionary</div>
+        <div class="label">TSV Dictionary</div>
         <label class="file" for="dictionaryFile" style="margin-left: auto">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -457,47 +462,16 @@
         <input type="file" id="dictionaryFile" />
       </div>
       <div class="row">
-        <textarea class="textarea" rows="4" id="serializedDictionary" wrap="off"></textarea>
+        <textarea
+          class="textarea"
+          placeholder="Add TSV Dictionary"
+          rows="4"
+          id="serializedDictionary"
+          wrap="off"
+        ></textarea>
       </div>
     </div>
     <div class="block">
-      <div class="row">
-        <div class="label">Exceptions</div>
-        <label class="file" for="exceptionsFile" style="margin-left: auto">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            widht="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
-          </svg>
-        </label>
-        <input type="file" id="exceptionsFile" />
-      </div>
-      <div class="row">
-        <textarea
-          class="textarea"
-          id="serializedExceptions"
-          wrap="off"
-          placeholder="one regular expression per line..."
-        ></textarea>
-      </div>
-      <div class="row">
-        <a
-          href="https://github.com/thoughteer/figma-static-localizer#exceptions"
-          target="_blank"
-          style="margin-left: auto"
-          >What's a regular expression?</a
-        >
-      </div>
       <div class="row">
         <div class="label">To JPG:</div>
       </div>
@@ -508,17 +482,30 @@
         </label>
       </div>
     </div>
+
     <div class="block" style="margin-top: 16px">
       <div class="row">
-        <input class="input" id="sourceLanguage" />
+        <input class="input" placeholder="Initial language" id="sourceLanguage" />
         <div class="label">&nbsp;</div>
-        <button class="button button--primary" id="translate" disabled>Translate</button>
+        <button class="button button--primary" id="translate" disabled>Translate and save</button>
+      </div>
+      <div class="row">
+        <p class="d-none">Now translating: <span id="changingLanguage"></span></p>
       </div>
     </div>
     <div class="divider"></div>
-    <div id="translationFailures"></div>
+    <div class="block" style="margin-top: 16px">
+      <div class="row">
+        <button class="button button--primary" id="copy">Translate and preview</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="block" style="margin-top: 16px">
+      <div class="row">
+        <button class="button button--primary" id="save">Save selected</button>
+      </div>
+    </div>
   </div>
-
   <script
     src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
     integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
@@ -527,23 +514,22 @@
   ></script>
   <script type="module">
     var fields = null;
+    let language = "";
     onmessage = (event) => {
       const message = event.data.pluginMessage;
       if (!message) {
         return;
       }
-
       if (message.type === "settings") {
         fields = Object.keys(message.settings);
-
         fields.forEach((field) => {
           const element = document.getElementById(field);
           element.value = message.settings[field];
         });
-      } else if (message.type === "translation-failures") {
-        updateTranslationFailures(message.failures);
       } else if (message.type === "ready") {
         document.getElementById("translate").disabled = false;
+        document.getElementById("copy").disabled = false;
+        document.getElementById("save").disabled = false;
       } else if (message.type === "content") {
         let zip = new JSZip();
         message.content.forEach((data, idx) => {
@@ -559,6 +545,29 @@
           link.download = "export.zip";
           link.click();
         });
+      } else if (message.type === "content-to-save") {
+        let zip = new JSZip();
+        message.contentToSave.forEach((data, idx) => {
+          let { bytesMainImage, name, imageExtension, language } = data;
+          let blob = new Blob([bytesMainImage]);
+          zip.folder(`${language}`).file(`${name}.${imageExtension}`, blob);
+        });
+        zip.generateAsync({ type: "blob" }).then((content) => {
+          const blobURL = window.URL.createObjectURL(content);
+          const link = document.createElement("a");
+          link.className = "button button--primary";
+          link.href = blobURL;
+          link.download = "export.zip";
+          link.click();
+        });
+      } else if (message.type === "current-lang") {
+        document.getElementById("changingLanguage").innerHTML = message.currentLanguage;
+      } else if (message.type === "start-to-translate") {
+        document.getElementById("changingLanguage").classList.remove = "d-none";
+        document.getElementById("changingLanguage").classList.add = "d-block";
+      } else if (message.type === "translation-ended") {
+        document.getElementById("changingLanguage").classList.add = "d-none";
+        document.getElementById("changingLanguage").classList.remove = "d-block";
       }
     };
 
@@ -566,15 +575,25 @@
     document.getElementById("dictionaryFile").onclick = (e) => {
       e.target.value = null;
     };
-    document.getElementById("exceptionsFile").onchange = (e) => loadFile(e, "serializedExceptions");
-    document.getElementById("exceptionsFile").onclick = (e) => {
-      e.target.value = null;
-    };
+
+    document.getElementById("changingLanguage").innerText = language;
 
     document.getElementById("translate").onclick = () => {
       document.getElementById("translate").disabled = true;
       const settings = getSettings();
       parent.postMessage({ pluginMessage: { type: "translate-and-save", settings } }, "*");
+    };
+
+    document.getElementById("copy").onclick = () => {
+      document.getElementById("copy").disabled = true;
+      const settings = getSettings();
+      parent.postMessage({ pluginMessage: { type: "copy", settings } }, "*");
+    };
+
+    document.getElementById("save").onclick = () => {
+      document.getElementById("save").disabled = true;
+      const settings = getSettings();
+      parent.postMessage({ pluginMessage: { type: "save", settings } }, "*");
     };
 
     parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
@@ -605,61 +624,6 @@
         }
       };
       reader.readAsText(file);
-    }
-
-    function updateTranslationFailures(failures) {
-      const holder = document.getElementById("translationFailures");
-      holder.innerHTML = "";
-      failures.map(renderError).forEach((element) => holder.appendChild(element));
-      holder.appendChild(renderSuggestions(extractSuggestions(failures)));
-    }
-
-    function renderError(failure) {
-      const { nodeId, error } = failure;
-      const result = document.createElement("div");
-      result.className = "row block";
-      const link = document.createElement("a");
-      link.href = 'javascript:focusNode("' + nodeId + '");';
-      link.innerText = nodeId;
-      const comment = document.createElement("span");
-      comment.innerText = error;
-      comment.appendChild(link);
-      result.appendChild(comment);
-      return result;
-    }
-
-    function extractSuggestions(failures) {
-      const result = [];
-      const unique = new Set();
-      for (let failure of failures) {
-        for (let suggestion of failure.suggestions) {
-          if (!unique.has(suggestion)) {
-            result.push(suggestion);
-            unique.add(suggestion);
-          }
-        }
-      }
-      return result;
-    }
-
-    function renderSuggestions(suggestions) {
-      const result = document.createElement("div");
-      if (suggestions.length > 0) {
-        const labelRow = document.createElement("div");
-        labelRow.className = "row";
-        labelRow.innerHTML = '<div class="label">We suggest to translate the following phrases</div>';
-        result.appendChild(labelRow);
-        const dataRow = document.createElement("div");
-        dataRow.className = "row";
-        const dataArea = document.createElement("textarea");
-        dataArea.className = "textarea";
-        dataArea.readOnly = true;
-        dataArea.wrap = "off";
-        dataArea.value = suggestions.join("\n");
-        dataRow.appendChild(dataArea);
-        result.appendChild(dataRow);
-      }
-      return result;
     }
 
     function focusNode(id) {

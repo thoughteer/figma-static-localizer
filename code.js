@@ -10,18 +10,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 var SettingsManager;
 (function (SettingsManager) {
     const DEFAULT = {
-        serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
-        serializedExceptions: "",
-        sourceLanguage: "RU",
+        serializedDictionary: "",
+        sourceLanguage: "en-US",
         imageExtensionIsJPG: false,
     };
     const FIELDS = Object.keys(DEFAULT);
-    const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
     function load() {
         return __awaiter(this, void 0, void 0, function* () {
             const result = {};
             const promises = FIELDS.map((field) => figma.clientStorage
-                .getAsync(CLIENT_STORAGE_PREFIX + field)
+                .getAsync(field)
                 .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value })));
             (yield Promise.all(promises)).forEach(({ field, value }) => {
                 result[field] = value;
@@ -30,21 +28,36 @@ var SettingsManager;
         });
     }
     SettingsManager.load = load;
-    function save(settings) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield Promise.all(FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field])));
-        });
-    }
-    SettingsManager.save = save;
 })(SettingsManager || (SettingsManager = {}));
 let content = [];
+let contentToSave = [];
 function translateSelectionAndSave(settings) {
     return __awaiter(this, void 0, void 0, function* () {
         content = [];
         const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
         const mappings = yield getTranslations(dictionary, settings.sourceLanguage);
-        const exceptions = yield parseExceptions(settings.serializedExceptions);
-        yield replaceAllTextsAndSave(mappings, exceptions, settings.imageExtensionIsJPG);
+        yield replaceAllTextsAndSave(mappings, settings.imageExtensionIsJPG);
+    });
+}
+function translateSelectionAndCopy(settings) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const dictionary = yield parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
+        const mappings = yield getTranslations(dictionary, settings.sourceLanguage);
+        yield cloneAllTexts(mappings);
+    });
+}
+function SaveSelectedToBuffer(imageExtensionIsJPG) {
+    return __awaiter(this, void 0, void 0, function* () {
+        contentToSave = [];
+        const selected = figma.currentPage.selection;
+        yield Promise.all(selected.map((node) => __awaiter(this, void 0, void 0, function* () {
+            const [, lang, nodeName] = node.name.match(/^([^_]*)_(.*)/);
+            let bytesMainImage = yield node.exportAsync({ format: imageExtensionIsJPG ? "JPG" : "PNG" });
+            let language = lang;
+            let name = nodeName;
+            let imageExtension = imageExtensionIsJPG ? "JPG" : "PNG";
+            contentToSave.push({ bytesMainImage, name, imageExtension, language });
+        })));
     });
 }
 function parseDictionary(serializedDictionary, sourceLanguage) {
@@ -95,36 +108,14 @@ function getTranslations(dictionary, sourceLanguage) {
         return result;
     });
 }
-function parseExceptions(serializedExceptions) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return serializedExceptions
-            .split("\n")
-            .filter((pattern) => pattern !== "")
-            .map((pattern) => {
-            try {
-                return new RegExp(pattern);
-            }
-            catch (_) {
-                throw { error: "invalid regular expression `" + pattern + "`" };
-            }
-        });
-    });
-}
-function replaceAllTextsAndSave(mappings, exceptions, imageExtensionIsJPG) {
+function replaceAllTextsAndSave(mappings, imageExtensionIsJPG) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
+        figma.ui.postMessage({ type: 'start-to-translate' });
         for (const mapping of mappings) {
-            let replacements = (yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping, exceptions))).filter((r) => r !== null);
-            let failures = replacements.filter((r) => "error" in r);
-            // если RTL
-            // if (failures.length == 0) {
-            //   replacements = await mapWithRateLimit(replacements, 100, reverseAndWrapReplacement);
-            //   failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-            // }
-            if (failures.length > 0) {
-                console.log("Failures:", failures);
-                throw { error: "found some untranslatable nodes", failures };
-            }
+            const currentLanguage = mapping.sourceLanguage;
+            figma.ui.postMessage({ type: 'current-lang', currentLanguage });
+            let replacements = (yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping))).filter((r) => r !== null);
             const selected = figma.currentPage.selection;
             Promise.all(selected.map((node, index) => __awaiter(this, void 0, void 0, function* () {
                 let bytesMainImage = yield node.exportAsync({ format: imageExtensionIsJPG ? "JPG" : "PNG" });
@@ -140,20 +131,57 @@ function replaceAllTextsAndSave(mappings, exceptions, imageExtensionIsJPG) {
         }
     });
 }
-function computeReplacement(node, mapping, exceptions) {
+function cloneAllTexts(mappings) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const textNodes = yield findSelectedTextNodes();
+        const selected = figma.currentPage.selection;
+        let minX = +Infinity;
+        let maxX = -Infinity;
+        let minY = +Infinity;
+        let maxY = -Infinity;
+        selected.forEach((node) => {
+            if (node.x < minX) {
+                minX = node.x;
+            }
+            if (node.x + node.width > maxX) {
+                maxX = node.x + node.width;
+            }
+            if (node.y < minY) {
+                minY = node.y;
+            }
+            if (node.y + node.height > maxY) {
+                maxY = node.y + node.height;
+            }
+        });
+        const selectionHeight = maxY - minY;
+        const selectionWidth = maxX - minX;
+        const offsetY = Math.floor(selectionHeight / 8);
+        const offsetX = Math.floor(selectionWidth / 8);
+        const squareSidesSize = Math.ceil(Math.sqrt(mappings.length));
+        for (const [idx, mapping] of mappings.entries()) {
+            let replacements = yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping));
+            const i = Math.floor(idx / squareSidesSize);
+            const j = idx % squareSidesSize;
+            const xTransition = (selectionWidth + offsetX) * (1 + j);
+            const yTransition = (selectionHeight + offsetY) * i;
+            selected.forEach((node) => {
+                let originalInstanceNode = node;
+                let instanceNodeCopy = originalInstanceNode.clone();
+                instanceNodeCopy.x = Math.floor(originalInstanceNode.x + xTransition);
+                instanceNodeCopy.y = Math.floor(originalInstanceNode.y + yTransition);
+                instanceNodeCopy.name = `${mapping.sourceLanguage}_${originalInstanceNode.name}`;
+            });
+            yield mapWithRateLimit(replacements, 250, replaceText);
+        }
+    });
+}
+function computeReplacement(node, mapping) {
     return __awaiter(this, void 0, void 0, function* () {
         const content = normalizeContent(node.characters);
-        if (keepAsIs(content, exceptions)) {
-            return null;
-        }
         const sections = sliceIntoSections(node);
-        const suggestions = suggest(node, content, sections, mapping, exceptions);
-        if (!(content in mapping)) {
-            return { nodeId: node.id, error: "No translation for `" + content + "`", suggestions };
-        }
         const result = {
             node,
-            translation: mapping[content],
+            translation: !(content in mapping) ? content : mapping[content],
             baseStyle: null,
             sections: [],
         };
@@ -182,11 +210,6 @@ function computeReplacement(node, mapping, exceptions) {
                 if (sectionContent in mapping) {
                     sectionTranslation = mapping[sectionContent];
                 }
-                else if (!keepAsIs(sectionContent, exceptions)) {
-                    errorLog.push(prelude + "no translation for `" + sectionContent + "`");
-                    ok = false;
-                    break;
-                }
                 const index = result.translation.indexOf(sectionTranslation);
                 if (index == -1) {
                     errorLog.push(prelude + "`" + sectionTranslation + "` not found within `" + result.translation + "`");
@@ -205,215 +228,11 @@ function computeReplacement(node, mapping, exceptions) {
                 break;
             }
         }
-        if (result.baseStyle === null) {
-            return { nodeId: node.id, error: errorLog.join(". "), suggestions };
-        }
         return result;
     });
 }
 function normalizeContent(content) {
     return content.replace(/[\u000A\u00A0\u2028\u202F]/g, " ").replace(/ +/g, " ");
-}
-function keepAsIs(content, exceptions) {
-    for (let regex of exceptions) {
-        if (content.match(regex)) {
-            return true;
-        }
-    }
-    return false;
-}
-function suggest(node, content, sections, mapping, exceptions) {
-    const n = content.length;
-    const styleScores = new Map();
-    for (let { from, to, style } of sections) {
-        styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
-    }
-    let suggestedBaseStyleId = null;
-    let suggestedBaseStyleScore = 0;
-    for (let [styleId, styleScore] of styleScores) {
-        if (styleScore > suggestedBaseStyleScore) {
-            suggestedBaseStyleId = styleId;
-            suggestedBaseStyleScore = styleScore;
-        }
-    }
-    const result = [];
-    if (!(content in mapping)) {
-        result.push(content);
-    }
-    for (let { from, to, style } of sections) {
-        if (style.id === suggestedBaseStyleId) {
-            continue;
-        }
-        const sectionContent = normalizeContent(node.characters.slice(from, to));
-        if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
-            result.push(sectionContent);
-        }
-    }
-    return result;
-}
-function reverseAndWrapReplacement(replacement) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const reversedReplacement = yield reverseReplacement(replacement);
-        if (replacement.node.textAutoResize === "WIDTH_AND_HEIGHT") {
-            return reversedReplacement;
-        }
-        return wrapReplacement(reversedReplacement);
-    });
-}
-function reverseReplacement(replacement) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const { reversedText: reversedTranslation, nonReversibleRanges } = reverseText(replacement.translation);
-        const n = replacement.translation.length;
-        const reversedSections = replacement.sections.map(({ from, to, style }) => ({ from: n - to, to: n - from, style }));
-        const overridingSections = [];
-        for (let range of nonReversibleRanges) {
-            overridingSections.push(Object.assign(Object.assign({}, range), { style: replacement.baseStyle }));
-            for (let { from, to, style } of reversedSections) {
-                if (from < range.to && to > range.from) {
-                    overridingSections.push({
-                        from: range.from + range.to - Math.min(to, range.to),
-                        to: range.from + range.to - Math.max(from, range.from),
-                        style,
-                    });
-                }
-            }
-        }
-        const result = {
-            node: replacement.node,
-            translation: reversedTranslation,
-            baseStyle: replacement.baseStyle,
-            sections: reversedSections.concat(overridingSections),
-        };
-        return result;
-    });
-}
-function reverseText(text) {
-    // TODO: replace with a proper implementation for RTL languages
-    const words = [];
-    const nonReversibleWordStack = [];
-    const nonReversibleRanges = [];
-    const dumpNonReversibleWordStack = (to) => {
-        if (nonReversibleWordStack.length > 0) {
-            const phrase = nonReversibleWordStack.reverse().join(" ");
-            words.push(phrase);
-            nonReversibleRanges.push({ from: to - phrase.length, to });
-            nonReversibleWordStack.length = 0;
-        }
-    };
-    let offset = -1;
-    for (let word of text.split(" ").reverse()) {
-        if (isReversible(word)) {
-            dumpNonReversibleWordStack(offset);
-            words.push(reverseSpecialSymbols(word.split("").reverse().join("")));
-        }
-        else {
-            nonReversibleWordStack.push(word);
-        }
-        offset += word.length + 1;
-    }
-    dumpNonReversibleWordStack(offset);
-    return { reversedText: words.join(" "), nonReversibleRanges };
-}
-function isReversible(word) {
-    return /[\u0500-\u0700]|^$/.test(word);
-}
-function reverseSpecialSymbols(word) {
-    const reversalTable = new Map([
-        ["(", ")"],
-        [")", "("],
-        ["[", "]"],
-        ["]", "["],
-        ["{", "}"],
-        ["}", "{"],
-    ]);
-    return word
-        .split("")
-        .map((c) => reversalTable.get(c) || c)
-        .join("");
-}
-function wrapReplacement(replacement) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield loadFontsForReplacement(replacement);
-        const bufferNode = replacement.node.clone();
-        bufferNode.opacity = 0;
-        bufferNode.characters = "";
-        bufferNode.textAutoResize = "HEIGHT";
-        let wrappedTranslationLines = [];
-        let wrappedSections = [];
-        const words = replacement.translation.split(" ");
-        let wordIndex = words.length - 1;
-        let lineStart = replacement.translation.length;
-        let lineEnd = lineStart;
-        let currentLineOffset = 0;
-        while (wordIndex >= 0) {
-            let currentLine = "";
-            let lineBreakStyle = replacement.baseStyle;
-            while (wordIndex >= 0) {
-                const word = words[wordIndex];
-                const insertion = wordIndex > 0 ? " " + word : word;
-                const originalBufferHeight = bufferNode.height;
-                bufferNode.insertCharacters(currentLineOffset, insertion, "AFTER");
-                lineStart -= insertion.length;
-                for (let { from, to, style } of replacement.sections) {
-                    if (from < lineStart + insertion.length && to > lineStart) {
-                        setSectionStyle(bufferNode, currentLineOffset + Math.max(0, from - lineStart), currentLineOffset + Math.min(to - lineStart, insertion.length), style);
-                    }
-                }
-                const newBufferHeight = bufferNode.height;
-                if (newBufferHeight > originalBufferHeight) {
-                    bufferNode.deleteCharacters(currentLineOffset, currentLineOffset + insertion.length);
-                    lineStart += insertion.length;
-                    if (lineStart == lineEnd) {
-                        bufferNode.remove();
-                        return {
-                            nodeId: replacement.node.id,
-                            error: "Word `" + reverseText(insertion).reversedText + "` does not fit into the box",
-                            suggestions: [],
-                        };
-                    }
-                    const lineBreakOffset = currentLineOffset + currentLine.length;
-                    bufferNode.insertCharacters(lineBreakOffset, "\u2028", "BEFORE");
-                    for (let { from, to, style } of replacement.sections.reverse()) {
-                        if (from <= lineStart - 1 && lineStart - 1 < to) {
-                            lineBreakStyle = style;
-                            break;
-                        }
-                    }
-                    setSectionStyle(bufferNode, lineBreakOffset, lineBreakOffset + 1, lineBreakStyle);
-                    break;
-                }
-                currentLine = insertion + currentLine;
-                wordIndex--;
-            }
-            wrappedTranslationLines.push(currentLine);
-            for (let { from, to, style } of replacement.sections) {
-                if (from < lineEnd && to > lineStart) {
-                    wrappedSections.push({
-                        from: currentLineOffset + Math.max(0, from - lineStart),
-                        to: currentLineOffset + Math.min(to, lineEnd) - lineStart,
-                        style,
-                    });
-                }
-            }
-            if (wordIndex >= 0) {
-                wrappedSections.push({
-                    from: currentLineOffset + currentLine.length,
-                    to: currentLineOffset + currentLine.length + 1,
-                    style: lineBreakStyle,
-                });
-            }
-            lineEnd = lineStart;
-            currentLineOffset += currentLine.length + 1;
-        }
-        const result = {
-            node: replacement.node,
-            translation: wrappedTranslationLines.join("\u2028"),
-            baseStyle: replacement.baseStyle,
-            sections: wrappedSections,
-        };
-        bufferNode.remove();
-        return result;
-    });
 }
 function replaceText(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -604,6 +423,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             .then(() => __awaiter(this, void 0, void 0, function* () {
             figma.ui.postMessage({ type: "content", content });
             figma.ui.postMessage({ type: "translation-failures", failures: [] });
+            figma.ui.postMessage({ type: 'translation-ended' });
             figma.ui.postMessage({ type: "ready" });
             figma.notify("Done");
         }))
@@ -619,5 +439,31 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             }
             figma.ui.postMessage({ type: "ready" });
         });
+    }
+    else if (message.type === "copy") {
+        yield translateSelectionAndCopy(message.settings)
+            .then(() => __awaiter(this, void 0, void 0, function* () {
+            figma.ui.postMessage({ type: "ready" });
+            figma.notify("Done");
+        }))
+            .catch((reason) => {
+            if ("error" in reason) {
+                figma.notify("Translation failed: " + reason.error);
+                if ("failures" in reason) {
+                    figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
+                }
+            }
+            else {
+                figma.notify(reason.toString());
+            }
+            figma.ui.postMessage({ type: "ready" });
+        });
+    }
+    else if ((message.type = "save-content")) {
+        yield SaveSelectedToBuffer(message.settings.imageExtensionIsJPG).then(() => __awaiter(this, void 0, void 0, function* () {
+            figma.ui.postMessage({ type: "content-to-save", contentToSave });
+            figma.ui.postMessage({ type: "ready" });
+            figma.notify("Done");
+        }));
     }
 });

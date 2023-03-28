@@ -1,37 +1,28 @@
 type Settings = {
   serializedDictionary: string;
-  serializedExceptions: string;
   sourceLanguage: string;
   imageExtensionIsJPG: boolean;
 };
 
 namespace SettingsManager {
   const DEFAULT: Settings = {
-    serializedDictionary: "RU\tEN\tES\nПривет!\tHello!\tHola!\nПока!\tBye!\tHasta luego!\nкласс\tclass\tclasse",
-    serializedExceptions: "",
-    sourceLanguage: "RU",
+    serializedDictionary: "",
+    sourceLanguage: "en-US",
     imageExtensionIsJPG: false,
   };
   const FIELDS = Object.keys(DEFAULT);
-  const CLIENT_STORAGE_PREFIX = "StaticLocalizer.";
 
   export async function load(): Promise<Settings> {
     const result = <Settings>{};
     const promises = FIELDS.map((field) =>
       figma.clientStorage
-        .getAsync(CLIENT_STORAGE_PREFIX + field)
+        .getAsync(field)
         .then((value) => ({ field, value: value === undefined ? DEFAULT[field] : value }))
     );
     (await Promise.all(promises)).forEach(({ field, value }) => {
       result[field] = value;
     });
     return result;
-  }
-
-  export async function save(settings: Settings): Promise<void> {
-    await Promise.all(
-      FIELDS.map((field) => figma.clientStorage.setAsync(CLIENT_STORAGE_PREFIX + field, settings[field]))
-    );
   }
 }
 
@@ -88,13 +79,34 @@ type ReplacementFailure = {
 type ReplacementAttempt = Replacement | ReplacementFailure;
 
 let content = [];
+let contentToSave = [];
 
 async function translateSelectionAndSave(settings: Settings): Promise<void> {
   content = [];
   const dictionary = await parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
   const mappings = await getTranslations(dictionary, settings.sourceLanguage);
-  const exceptions = await parseExceptions(settings.serializedExceptions);
-  await replaceAllTextsAndSave(mappings, exceptions, settings.imageExtensionIsJPG);
+  await replaceAllTextsAndSave(mappings, settings.imageExtensionIsJPG);
+}
+
+async function translateSelectionAndCopy(settings: Settings): Promise<void> {
+  const dictionary = await parseDictionary(settings.serializedDictionary, settings.sourceLanguage);
+  const mappings = await getTranslations(dictionary, settings.sourceLanguage);
+  await cloneAllTexts(mappings);
+}
+
+async function SaveSelectedToBuffer(imageExtensionIsJPG: boolean): Promise<void> {
+  contentToSave = [];
+  const selected = figma.currentPage.selection;
+  await Promise.all(
+    selected.map(async (node) => {
+      const [, lang, nodeName] = node.name.match(/^([^_]*)_(.*)/);
+      let bytesMainImage = await node.exportAsync({ format: imageExtensionIsJPG ? "JPG" : "PNG" });
+      let language = lang;
+      let name = nodeName;
+      let imageExtension = imageExtensionIsJPG ? "JPG" : "PNG";
+      contentToSave.push({ bytesMainImage, name, imageExtension, language });
+    })
+  );
 }
 
 async function parseDictionary(serializedDictionary: string, sourceLanguage: string): Promise<Dictionary> {
@@ -148,35 +160,15 @@ async function getTranslations(dictionary: Dictionary, sourceLanguage: string): 
   return result;
 }
 
-async function parseExceptions(serializedExceptions: string): Promise<RegExp[]> {
-  return serializedExceptions
-    .split("\n")
-    .filter((pattern) => pattern !== "")
-    .map((pattern) => {
-      try {
-        return new RegExp(pattern);
-      } catch (_) {
-        throw { error: "invalid regular expression `" + pattern + "`" };
-      }
-    });
-}
-
-async function replaceAllTextsAndSave(
-  mappings: Translations[],
-  exceptions: RegExp[],
-  imageExtensionIsJPG: boolean
-): Promise<void> {
+async function replaceAllTextsAndSave(mappings: Translations[], imageExtensionIsJPG: boolean): Promise<void> {
   const textNodes = await findSelectedTextNodes();
-
+  figma.ui.postMessage({type:'start-to-translate'})
   for (const mapping of mappings) {
+    const currentLanguage = mapping.sourceLanguage
+    figma.ui.postMessage({type:'current-lang', currentLanguage})
     let replacements = (
-      await mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping, exceptions))
+      await mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping))
     ).filter((r) => r !== null);
-    let failures = replacements.filter((r) => "error" in r) as ReplacementFailure[];
-    if (failures.length > 0) {
-      console.log("Failures:", failures);
-      throw { error: "found some untranslatable nodes", failures };
-    }
     const selected = figma.currentPage.selection;
     Promise.all(
       selected.map(async (node, index) => {
@@ -194,21 +186,56 @@ async function replaceAllTextsAndSave(
   }
 }
 
-async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: RegExp[]): Promise<ReplacementAttempt> {
+async function cloneAllTexts(mappings: Translations[]): Promise<void> {
+  const textNodes = await findSelectedTextNodes();
+  const selected = figma.currentPage.selection;
+  let minX = +Infinity;
+  let maxX = -Infinity;
+  let minY = +Infinity;
+  let maxY = -Infinity;
+  selected.forEach((node) => {
+    if (node.x < minX) {
+      minX = node.x;
+    }
+    if (node.x + node.width > maxX) {
+      maxX = node.x + node.width;
+    }
+    if (node.y < minY) {
+      minY = node.y;
+    }
+    if (node.y + node.height > maxY) {
+      maxY = node.y + node.height;
+    }
+  });
+  const selectionHeight = maxY - minY;
+  const selectionWidth = maxX - minX;
+  const offsetY = Math.floor(selectionHeight / 8);
+  const offsetX = Math.floor(selectionWidth / 8);
+  const squareSidesSize = Math.ceil(Math.sqrt(mappings.length));
+  for (const [idx, mapping] of mappings.entries()) {
+    let replacements = await mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping));
+    const i = Math.floor(idx / squareSidesSize);
+    const j = idx % squareSidesSize;
+    const xTransition = (selectionWidth + offsetX) * (1 + j);
+    const yTransition = (selectionHeight + offsetY) * i;
+    selected.forEach((node) => {
+      let originalInstanceNode = node;
+      let instanceNodeCopy = originalInstanceNode.clone();
+      instanceNodeCopy.x = Math.floor(originalInstanceNode.x + xTransition);
+      instanceNodeCopy.y = Math.floor(originalInstanceNode.y + yTransition);
+      instanceNodeCopy.name = `${mapping.sourceLanguage}_${originalInstanceNode.name}`;
+    });
+    await mapWithRateLimit(replacements, 250, replaceText);
+  }
+}
+
+async function computeReplacement(node: TextNode, mapping: Mapping): Promise<ReplacementAttempt> {
   const content = normalizeContent(node.characters);
-  if (keepAsIs(content, exceptions)) {
-    return null;
-  }
+
   const sections = sliceIntoSections(node);
-  const suggestions = suggest(node, content, sections, mapping, exceptions);
-
-  if (!(content in mapping)) {
-    return { nodeId: node.id, error: "No translation for `" + content + "`", suggestions };
-  }
-
   const result: Replacement = {
     node,
-    translation: mapping[content],
+    translation: !(content in mapping) ? content : mapping[content],
     baseStyle: null,
     sections: [],
   };
@@ -239,10 +266,6 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
       let sectionTranslation = sectionContent;
       if (sectionContent in mapping) {
         sectionTranslation = mapping[sectionContent];
-      } else if (!keepAsIs(sectionContent, exceptions)) {
-        errorLog.push(prelude + "no translation for `" + sectionContent + "`");
-        ok = false;
-        break;
       }
       const index = result.translation.indexOf(sectionTranslation);
       if (index == -1) {
@@ -264,64 +287,12 @@ async function computeReplacement(node: TextNode, mapping: Mapping, exceptions: 
       break;
     }
   }
-
-  if (result.baseStyle === null) {
-    return { nodeId: node.id, error: errorLog.join(". "), suggestions };
-  }
-
   return result;
 }
 
 function normalizeContent(content: string): string {
   return content.replace(/[\u000A\u00A0\u2028\u202F]/g, " ").replace(/ +/g, " ");
 }
-
-function keepAsIs(content: string, exceptions: RegExp[]): boolean {
-  for (let regex of exceptions) {
-    if (content.match(regex)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function suggest(
-  node: TextNode,
-  content: string,
-  sections: Section[],
-  mapping: Mapping,
-  exceptions: RegExp[]
-): string[] {
-  const n = content.length;
-  const styleScores = new Map<string, number>();
-  for (let { from, to, style } of sections) {
-    styleScores.set(style.id, n + to - from + (styleScores.get(style.id) || 0));
-  }
-  let suggestedBaseStyleId: string = null;
-  let suggestedBaseStyleScore = 0;
-  for (let [styleId, styleScore] of styleScores) {
-    if (styleScore > suggestedBaseStyleScore) {
-      suggestedBaseStyleId = styleId;
-      suggestedBaseStyleScore = styleScore;
-    }
-  }
-
-  const result: string[] = [];
-  if (!(content in mapping)) {
-    result.push(content);
-  }
-  for (let { from, to, style } of sections) {
-    if (style.id === suggestedBaseStyleId) {
-      continue;
-    }
-    const sectionContent = normalizeContent(node.characters.slice(from, to));
-    if (!keepAsIs(sectionContent, exceptions) && !(sectionContent in mapping)) {
-      result.push(sectionContent);
-    }
-  }
-  return result;
-}
-
 
 async function replaceText(replacement: Replacement): Promise<void> {
   await loadFontsForReplacement(replacement);
@@ -521,6 +492,7 @@ figma.ui.onmessage = async (message) => {
       .then(async () => {
         figma.ui.postMessage({ type: "content", content });
         figma.ui.postMessage({ type: "translation-failures", failures: [] });
+        figma.ui.postMessage({type: 'translation-ended'})
         figma.ui.postMessage({ type: "ready" });
         figma.notify("Done");
       })
@@ -535,5 +507,28 @@ figma.ui.onmessage = async (message) => {
         }
         figma.ui.postMessage({ type: "ready" });
       });
+  } else if (message.type === "copy") {
+    await translateSelectionAndCopy(message.settings)
+      .then(async () => {
+        figma.ui.postMessage({ type: "ready" });
+        figma.notify("Done");
+      })
+      .catch((reason) => {
+        if ("error" in reason) {
+          figma.notify("Translation failed: " + reason.error);
+          if ("failures" in reason) {
+            figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
+          }
+        } else {
+          figma.notify(reason.toString());
+        }
+        figma.ui.postMessage({ type: "ready" });
+      });
+  } else if ((message.type = "save-content")) {
+    await SaveSelectedToBuffer(message.settings.imageExtensionIsJPG).then(async () => {
+      figma.ui.postMessage({ type: "content-to-save", contentToSave });
+      figma.ui.postMessage({ type: "ready" });
+      figma.notify("Done");
+    });
   }
 };
