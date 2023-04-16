@@ -162,10 +162,10 @@ async function getTranslations(dictionary: Dictionary, sourceLanguage: string): 
 
 async function replaceAllTextsAndSave(mappings: Translations[], imageExtensionIsJPG: boolean): Promise<void> {
   const textNodes = await findSelectedTextNodes();
-  figma.ui.postMessage({type:'start-to-translate'})
+  figma.ui.postMessage({ type: "start-to-translate" });
   for (const mapping of mappings) {
-    const currentLanguage = mapping.sourceLanguage
-    figma.ui.postMessage({type:'current-lang', currentLanguage})
+    const currentLanguage = mapping.sourceLanguage;
+    figma.ui.postMessage({ type: "current-lang", currentLanguage });
     let replacements = (
       await mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping))
     ).filter((r) => r !== null);
@@ -492,7 +492,7 @@ figma.ui.onmessage = async (message) => {
       .then(async () => {
         figma.ui.postMessage({ type: "content", content });
         figma.ui.postMessage({ type: "translation-failures", failures: [] });
-        figma.ui.postMessage({type: 'translation-ended'})
+        figma.ui.postMessage({ type: "translation-ended" });
         figma.ui.postMessage({ type: "ready" });
         figma.notify("Done");
       })

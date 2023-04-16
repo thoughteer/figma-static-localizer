@@ -111,10 +111,10 @@ function getTranslations(dictionary, sourceLanguage) {
 function replaceAllTextsAndSave(mappings, imageExtensionIsJPG) {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = yield findSelectedTextNodes();
-        figma.ui.postMessage({ type: 'start-to-translate' });
+        figma.ui.postMessage({ type: "start-to-translate" });
         for (const mapping of mappings) {
             const currentLanguage = mapping.sourceLanguage;
-            figma.ui.postMessage({ type: 'current-lang', currentLanguage });
+            figma.ui.postMessage({ type: "current-lang", currentLanguage });
             let replacements = (yield mapWithRateLimit(textNodes, 20, (node) => computeReplacement(node, mapping.mapping))).filter((r) => r !== null);
             const selected = figma.currentPage.selection;
             Promise.all(selected.map((node, index) => __awaiter(this, void 0, void 0, function* () {
@@ -423,7 +423,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
             .then(() => __awaiter(this, void 0, void 0, function* () {
             figma.ui.postMessage({ type: "content", content });
             figma.ui.postMessage({ type: "translation-failures", failures: [] });
-            figma.ui.postMessage({ type: 'translation-ended' });
+            figma.ui.postMessage({ type: "translation-ended" });
             figma.ui.postMessage({ type: "ready" });
             figma.notify("Done");
         }))
