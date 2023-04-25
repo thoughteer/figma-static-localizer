@@ -176,12 +176,13 @@ function cloneAllTexts(mappings) {
     });
 }
 function computeReplacement(node, mapping) {
+    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         const content = normalizeContent(node.characters);
         const sections = sliceIntoSections(node);
         const result = {
             node,
-            translation: !(content in mapping) ? content : mapping[content],
+            translation: (_a = mapping[content]) !== null && _a !== void 0 ? _a : content,
             baseStyle: null,
             sections: [],
         };
@@ -234,11 +235,20 @@ function computeReplacement(node, mapping) {
 function normalizeContent(content) {
     return content.replace(/[\u000A\u00A0\u2028\u202F]/g, " ").replace(/ +/g, " ");
 }
+let global;
 function replaceText(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         yield loadFontsForReplacement(replacement);
         const { node, translation, baseStyle, sections } = replacement;
         node.characters = translation;
+        if (/[\u0900-\u097F]/g.test(replacement.translation)) {
+            yield loadFontsForReplacement(replacement);
+            global = replacement.baseStyle.fontName;
+            node.fontName = { family: "Hind", style: replacement.baseStyle.fontName.style };
+        }
+        else {
+            node.fontName = global || replacement.baseStyle.fontName;
+        }
         if (sections.length > 0) {
             setSectionStyle(node, 0, translation.length, baseStyle);
             for (let { from, to, style } of sections) {
@@ -250,6 +260,9 @@ function replaceText(replacement) {
 function loadFontsForReplacement(replacement) {
     return __awaiter(this, void 0, void 0, function* () {
         yield figma.loadFontAsync(replacement.baseStyle.fontName);
+        if (/[\u0900-\u097F]/g.test(replacement.translation)) {
+            yield figma.loadFontAsync({ family: "Hind", style: replacement.baseStyle.fontName.style });
+        }
         yield Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
     });
 }
@@ -325,6 +338,7 @@ function sliceIntoSections(node, from = 0, to = node.characters.length) {
     }
     return leftSections.concat(rightSections);
 }
+const arr = [];
 function getSectionStyle(node, from, to) {
     const fills = node.getRangeFills(from, to);
     if (fills === figma.mixed) {
@@ -454,6 +468,7 @@ figma.ui.onmessage = (message) => __awaiter(this, void 0, void 0, function* () {
                 }
             }
             else {
+                console.log(reason.toString());
                 figma.notify(reason.toString());
             }
             figma.ui.postMessage({ type: "ready" });

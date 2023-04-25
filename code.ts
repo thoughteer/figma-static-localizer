@@ -231,20 +231,17 @@ async function cloneAllTexts(mappings: Translations[]): Promise<void> {
 
 async function computeReplacement(node: TextNode, mapping: Mapping): Promise<ReplacementAttempt> {
   const content = normalizeContent(node.characters);
-
   const sections = sliceIntoSections(node);
   const result: Replacement = {
     node,
-    translation: !(content in mapping) ? content : mapping[content],
+    translation: mapping[content] ?? content,
     baseStyle: null,
     sections: [],
   };
-
   const errorLog = [
     "Cannot determine a base style for `" + content + "`",
     "Split into " + sections.length + " sections",
   ];
-
   const styles = [];
   const styleIds = new Set<string>();
   sections.forEach(({ from, to, style }) => {
@@ -280,8 +277,10 @@ async function computeReplacement(node: TextNode, mapping: Mapping): Promise<Rep
         ok = false;
         break;
       }
+
       result.sections.push({ from: index, to: index + sectionTranslation.length, style });
     }
+
     if (ok) {
       result.baseStyle = baseStyleCandidate;
       break;
@@ -294,11 +293,19 @@ function normalizeContent(content: string): string {
   return content.replace(/[\u000A\u00A0\u2028\u202F]/g, " ").replace(/ +/g, " ");
 }
 
+let global: FontName;
+
 async function replaceText(replacement: Replacement): Promise<void> {
   await loadFontsForReplacement(replacement);
-
   const { node, translation, baseStyle, sections } = replacement;
   node.characters = translation;
+  if (/[\u0900-\u097F]/g.test(replacement.translation)) {
+    await loadFontsForReplacement(replacement);
+    global = replacement.baseStyle.fontName;
+    node.fontName = { family: "Hind", style: replacement.baseStyle.fontName.style };
+  } else {
+    node.fontName = global || replacement.baseStyle.fontName;
+  }
   if (sections.length > 0) {
     setSectionStyle(node, 0, translation.length, baseStyle);
     for (let { from, to, style } of sections) {
@@ -309,6 +316,9 @@ async function replaceText(replacement: Replacement): Promise<void> {
 
 async function loadFontsForReplacement(replacement: Replacement): Promise<void> {
   await figma.loadFontAsync(replacement.baseStyle.fontName);
+  if (/[\u0900-\u097F]/g.test(replacement.translation)) {
+    await figma.loadFontAsync({ family: "Hind", style: replacement.baseStyle.fontName.style });
+  }
   await Promise.all(replacement.sections.map(({ style }) => figma.loadFontAsync(style.fontName)));
 }
 
@@ -342,7 +352,6 @@ async function sendSelectionFonts() {
 // Utilities
 async function findSelectedTextNodes(): Promise<TextNode[]> {
   const result: TextNode[] = [];
-
   figma.currentPage.selection.forEach((root) => {
     if (root.type === "TEXT") {
       result.push(root as TextNode);
@@ -385,7 +394,7 @@ function sliceIntoSections(node: TextNode, from: number = 0, to: number = node.c
   }
   return leftSections.concat(rightSections);
 }
-
+const arr = [];
 function getSectionStyle(node: TextNode, from: number, to: number): Style | PluginAPI["mixed"] {
   const fills = node.getRangeFills(from, to);
   if (fills === figma.mixed) {
@@ -429,6 +438,7 @@ function getSectionStyle(node: TextNode, from: number, to: number): Style | Plug
     textDecoration,
     textStyleId,
   };
+
   return {
     id: JSON.stringify(parameters),
     ...parameters,
@@ -441,6 +451,7 @@ function setSectionStyle(node: TextNode, from: number, to: number, style: Style)
   node.setRangeFills(from, to, style.fills);
   node.setRangeFillStyleId(from, to, style.fillStyleId);
   node.setRangeFontName(from, to, style.fontName);
+
   node.setRangeFontSize(from, to, style.fontSize);
   node.setRangeLetterSpacing(from, to, style.letterSpacing);
   node.setRangeLineHeight(from, to, style.lineHeight);
@@ -520,6 +531,7 @@ figma.ui.onmessage = async (message) => {
             figma.ui.postMessage({ type: "translation-failures", failures: reason.failures });
           }
         } else {
+          console.log(reason.toString());
           figma.notify(reason.toString());
         }
         figma.ui.postMessage({ type: "ready" });
