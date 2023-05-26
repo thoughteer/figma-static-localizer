@@ -1,7 +1,8 @@
 {
-  "name": "Static Localizer",
+  "name": "Localizer",
   "id": "876934931929982678",
   "api": "1.0.0",
   "main": "code.js",
-  "ui": "ui.html"
+  "ui": "ui.html",
+  "editorType": ["figma", "figjam"]
 }

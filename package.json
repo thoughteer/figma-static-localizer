@@ -4,12 +4,15 @@
   "description": "Figma Static Localizer",
   "main": "code.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc --watch -p tsconfig.json"
   },
   "author": "Iskander Sitdikov",
   "license": "MIT",
   "devDependencies": {
     "@figma/plugin-typings": "^1.16.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "typescript": "^4.9.5"
+  }
 }

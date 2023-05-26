@@ -1,72 +1,81 @@
 <style>
-* {
+  * {
     -webkit-box-sizing: border-box;
     box-sizing: border-box;
-}
-
-@font-face {
+  }
+  .d-block {
+    display: block;
+  }
+  .d-none {
+    display: none;
+  }
+  @font-face {
     font-family: Inter;
     font-style: normal;
     font-weight: 400;
-    src: url(https://rsms.me/inter/font-files/Inter-Regular.woff2?v=3.7) format("woff2"), url(https://rsms.me/inter/font-files/Inter-Regular.woff?v=3.7) format("woff")
-}
+    src: url(https://rsms.me/inter/font-files/Inter-Regular.woff2?v=3.7) format("woff2"),
+      url(https://rsms.me/inter/font-files/Inter-Regular.woff?v=3.7) format("woff");
+  }
 
-@font-face {
+  @font-face {
     font-family: Inter;
     font-style: normal;
     font-weight: 500;
-    src: url(https://rsms.me/inter/font-files/Inter-Medium.woff2?v=3.7) format("woff2"), url(https://rsms.me/inter/font-files/Inter-Medium.woff2?v=3.7) format("woff")
-}
+    src: url(https://rsms.me/inter/font-files/Inter-Medium.woff2?v=3.7) format("woff2"),
+      url(https://rsms.me/inter/font-files/Inter-Medium.woff2?v=3.7) format("woff");
+  }
 
-@font-face {
+  @font-face {
     font-family: Inter;
     font-style: normal;
     font-weight: 600;
-    src: url(https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=3.7) format("woff2"), url(https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=3.7) format("woff")
-}
+    src: url(https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=3.7) format("woff2"),
+      url(https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=3.7) format("woff");
+  }
 
-html, body {
+  html,
+  body {
     font-family: Inter, sans-serif;
     font-size: 11px;
     font-weight: 400;
     height: 100%;
-    letter-spacing: .005em;
+    letter-spacing: 0.005em;
     line-height: 16px;
     margin: 0;
     padding: 0;
     width: 100%;
-}
+  }
 
-.container {
+  .container {
     display: flex;
     flex-direction: column;
     padding: 0 8px 8px 8px;
     width: 100%;
-}
+  }
 
-.block {
+  .block {
     margin-top: 8px;
-}
+  }
 
-.row {
+  .row {
     display: flex;
     flex-direction: row;
-}
+  }
 
-.row * {
+  .row * {
     margin-left: 8px;
-}
+  }
 
-.row *:last-child {
+  .row *:last-child {
     margin-right: 8px;
-}
+  }
 
-.tab {
+  .tab {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
-    border-bottom: 1px solid rgba(0, 0, 0, .3);
-    color: rgba(0, 0, 0, .3);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+    color: rgba(0, 0, 0, 0.3);
     cursor: default;
     display: -ms-flexbox;
     display: -webkit-box;
@@ -76,61 +85,62 @@ html, body {
     justify-content: center;
     padding: 8px 0;
     width: 100%;
-}
+  }
 
-.tab--active {
-    border-bottom: 1px solid rgba(0, 0, 0, .8);
-    color: rgba(0, 0, 0, .8);
-}
+  .tab--active {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.8);
+    color: rgba(0, 0, 0, 0.8);
+  }
 
-.label {
+  .label {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
-    color: rgba(0, 0, 0, .3);
+    color: rgba(0, 0, 0, 0.3);
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
     height: 32px;
     padding: 8px 0;
-}
+  }
 
-input[type="file"] {
+  input[type="file"] {
     display: none;
-}
+  }
 
-.file {
+  .file {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
-    color: rgba(0, 0, 0, .5);
+    color: rgba(0, 0, 0, 0.5);
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
-}
+  }
 
-.file:hover, .file:focus {
-    color: rgba(0, 0, 0, .8);
-}
+  .file:hover,
+  .file:focus {
+    color: rgba(0, 0, 0, 0.8);
+  }
 
-.file:active {
+  .file:active {
     color: #18a0fb;
-}
+  }
 
-.file svg {
+  .file svg {
     bottom: 0px;
     margin: 0;
     position: relative;
-}
+  }
 
-.textarea {
+  .textarea {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
     background-color: #fff;
     border-radius: 2px;
-    border: 1px solid rgba(0, 0, 0, .1);
-    color: rgba(0, 0, 0, .8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: rgba(0, 0, 0, 0.8);
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
@@ -146,48 +156,49 @@ input[type="file"] {
     padding: 7px 4px 7px 7px;
     resize: none;
     width: 100%;
-}
+  }
 
-.textarea:active, .textarea:focus {
+  .textarea:active,
+  .textarea:focus {
     border: 2px solid #18a0fb;
     color: #000;
     padding: 6px 3px 6px 6px;
-}
+  }
 
-.textarea::-moz-selection {
-    background-color: rgba(24, 145, 251, .3);
+  .textarea::-moz-selection {
+    background-color: rgba(24, 145, 251, 0.3);
     color: #000;
-}
+  }
 
-.textarea::selection {
-    background-color: rgba(24, 145, 251, .3);
+  .textarea::selection {
+    background-color: rgba(24, 145, 251, 0.3);
     color: #000;
-}
+  }
 
-.textarea::-webkit-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .textarea::-webkit-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.textarea:-ms-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .textarea:-ms-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.textarea::-ms-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .textarea::-ms-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.textarea::placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .textarea::placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.input {
+  .input {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
     background-color: #fff;
     border-radius: 2px;
     border: 1px solid rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, .8);
+    color: rgba(0, 0, 0, 0.8);
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
@@ -202,60 +213,61 @@ input[type="file"] {
     outline: 0;
     padding: 7px 4px 7px 7px;
     width: 100%;
-}
+  }
 
-.input:active, .input:focus {
+  .input:active,
+  .input:focus {
     border: 2px solid #18a0fb;
     color: #000;
     padding: 6px 3px 6px 6px;
-}
+  }
 
-.input::-moz-selection {
-    background-color: rgba(24, 145, 251, .3);
+  .input::-moz-selection {
+    background-color: rgba(24, 145, 251, 0.3);
     color: #000;
-}
+  }
 
-.input::selection {
-    background-color: rgba(24, 145, 251, .3);
+  .input::selection {
+    background-color: rgba(24, 145, 251, 0.3);
     color: #000;
-}
+  }
 
-.input::-webkit-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .input::-webkit-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.input:-ms-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .input:-ms-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.input::-ms-input-placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .input::-ms-input-placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.input::placeholder {
-    color: rgba(0, 0, 0, .3);
-}
+  .input::placeholder {
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.checkbox-wrapper {
+  .checkbox-wrapper {
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
     padding: 1px 16px 1px 0;
-}
+  }
 
-.checkbox {
+  .checkbox {
     height: 0;
     margin-left: 4px;
     margin-top: 4px;
     outline: 0;
     width: 0;
-}
+  }
 
-.checkbox:after {
+  .checkbox:after {
     background-color: #fff;
     border-radius: 2px;
     border: 1px solid rgba(0, 0, 0, 0.1);
-    content: '';
+    content: "";
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
@@ -264,9 +276,9 @@ input[type="file"] {
     margin-left: -4px;
     margin-top: -4px;
     width: 28px;
-}
+  }
 
-.checkbox:checked:after {
+  .checkbox:checked:after {
     background-color: rgba(186, 222, 254, 1);
     border: 5px solid #fff;
     height: 18px;
@@ -274,18 +286,18 @@ input[type="file"] {
     margin-top: -3px;
     outline: 1px solid rgba(0, 0, 0, 0.1);
     width: 18px;
-}
+  }
 
-.checkbox:focus:after {
+  .checkbox:focus:after {
     border: 1px solid #18a0fb;
-}
+  }
 
-.checkbox:checked:focus:after {
+  .checkbox:checked:focus:after {
     border: 5px solid #fff;
     outline: 1px solid #18a0fb;
-}
+  }
 
-.button {
+  .button {
     -ms-flex-negative: 0;
     border-radius: 6px;
     border: 2px solid transparent;
@@ -295,46 +307,48 @@ input[type="file"] {
     margin-top: 1px;
     outline: 0;
     padding: 5px 16px 5px 16px;
-}
+  }
 
-.button--primary {
+  .button--primary {
     background-color: #18a0fb;
     color: #fff;
     font-weight: 500;
-    letter-spacing: .01em;
-}
+    letter-spacing: 0.01em;
+  }
 
-.button--primary:active, .button--primary:focus {
-    border: 2px solid rgba(0, 0, 0, .3);
-}
+  .button--primary:active,
+  .button--primary:focus {
+    border: 2px solid rgba(0, 0, 0, 0.3);
+  }
 
-.button--primary:disabled {
-    background-color: rgba(0, 0, 0, .3);
-}
+  .button--primary:disabled {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
 
-.button--secondary {
+  .button--secondary {
     background-color: #fff;
-    border: 1px solid rgba(0, 0, 0, .8);
-    color: rgba(0, 0, 0, .8);
-}
+    border: 1px solid rgba(0, 0, 0, 0.8);
+    color: rgba(0, 0, 0, 0.8);
+  }
 
-.button--secondary:active, .button--secondary:focus {
+  .button--secondary:active,
+  .button--secondary:focus {
     border: 2px solid #18a0fb;
     padding: 4px 15px 4px 15px;
-}
+  }
 
-.button--secondary:disabled {
-    border: 1px solid rgba(0, 0, 0, .3);
-    color: rgba(0, 0, 0, .3);
-}
+  .button--secondary:disabled {
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    color: rgba(0, 0, 0, 0.3);
+  }
 
-.select {
+  .select {
     -ms-flex-align: center;
     -webkit-box-align: center;
     align-items: center;
     background-color: #fff;
     border: 1px solid rgba(0, 0, 0, 0.1);
-    color: rgba(0, 0, 0, .8);
+    color: rgba(0, 0, 0, 0.8);
     display: -ms-flexbox;
     display: -webkit-box;
     display: flex;
@@ -348,403 +362,272 @@ input[type="file"] {
     margin-top: 1px;
     outline: none;
     width: 100%;
-}
+  }
 
-.select:active, .select:focus {
+  .select:active,
+  .select:focus {
     border: 1px solid #18a0fb;
-}
+  }
 
-.divider {
+  .divider {
     background-color: #e5e5e5;
     display: block;
     height: 1px;
     margin: 16px 0 8px 0;
     padding: 0;
     width: auto;
-}
+  }
 
-a {
+  a {
     color: #18a0fb;
-}
+  }
+  .switch {
+    position: relative;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: -4px;
+    left: -5px;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: 0.4s;
+    transition: 0.4s;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 15px;
+    width: 15px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    -webkit-transition: 0.4s;
+    transition: 0.4s;
+  }
+
+  input:checked + .slider {
+    background-color: #2196f3;
+  }
+
+  input:focus + .slider {
+    box-shadow: 0 0 1px #2196f3;
+  }
+
+  input:checked + .slider:before {
+    -webkit-transform: translateX(16px);
+    -ms-transform: translateX(16px);
+    transform: translateX(16px);
+  }
+
+  .slider.round {
+    border-radius: 34px;
+    height: 23px;
+    width: 40px;
+  }
+
+  .slider.round:before {
+    border-radius: 50%;
+  }
 </style>
 
 <body>
-    <div class="row">
-        <div class="tab tab--active" with="translation">Translation</div>
-        <div class="tab" with="conversion">Conversion</div>
-        <div class="tab" with="mirroring">Mirroring</div>
-        <div class="tab" with="fonts">Fonts</div>
+  <div class="row">
+    <div class="tab tab--active" with="translation">Translation</div>
+  </div>
+
+  <div class="container" id="translation">
+    <div class="block">
+      <div class="row">
+        <div class="label">TSV Dictionary</div>
+        <label class="file" for="dictionaryFile" style="margin-left: auto">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            widht="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </label>
+        <input type="file" id="dictionaryFile" />
+      </div>
+      <div class="row">
+        <textarea
+          class="textarea"
+          placeholder="Add TSV Dictionary"
+          rows="4"
+          id="serializedDictionary"
+          wrap="off"
+        ></textarea>
+      </div>
+    </div>
+    <div class="block">
+      <div class="row">
+        <div class="label">To JPG:</div>
+      </div>
+      <div class="row">
+        <label class="switch">
+          <input type="checkbox" id="imageExtensionIsJPG" />
+          <span class="slider round"></span>
+        </label>
+      </div>
     </div>
 
-    <div class="container" id="translation">
-        <div class="block">
-            <div class="row">
-                <div class="label">Dictionary</div>
-                <label class="file" for="dictionaryFile" style="margin-left: auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" widht="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                </label>
-                <input type="file" id="dictionaryFile"/>
-            </div>
-            <div class="row">
-                <textarea class="textarea" id="serializedDictionary" wrap="off"></textarea>
-            </div>
-        </div>
-        <div class="block">
-            <div class="row">
-                <div class="label">Exceptions</div>
-                <label class="file" for="exceptionsFile" style="margin-left: auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" widht="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                </label>
-                <input type="file" id="exceptionsFile"/>
-            </div>
-            <div class="row">
-                <textarea class="textarea" id="serializedExceptions" wrap="off" placeholder="one regular expression per line..."></textarea>
-            </div>
-            <div class="row">
-                <a href="https://github.com/thoughteer/figma-static-localizer#exceptions" target="_blank" style="margin-left: auto;">What's a regular expression?</a>
-            </div>
-        </div>
-        <div class="block" style="margin-top: 16px;">
-            <div class="row">
-                <input class="input" id="sourceLanguage"/>
-                <div class="label">&nbsp;&rarr;&nbsp;</div>
-                <input class="input" id="targetLanguage"/>
-                <div class="checkbox-wrapper"><input class="checkbox" type="checkbox" id="targetLanguageIsRTL" checked="false" title="Check if the target language is RTL"/></div>
-                <div class="label">&nbsp;</div>
-                <button class="button button--primary" id="translate" disabled>Translate</button>
-            </div>
-        </div>
-        <div class="divider"></div>
-        <div id="translationFailures"></div>
+    <div class="block" style="margin-top: 16px">
+      <div class="row">
+        <input class="input" placeholder="Initial language" id="sourceLanguage" />
+        <div class="label">&nbsp;</div>
+        <button class="button button--primary" id="translate" disabled>Translate and save</button>
+      </div>
+      <div class="row">
+        <p class="d-none">Now translating: <span id="changingLanguage"></span></p>
+      </div>
     </div>
-
-    <div class="container" id="conversion">
-        <div class="block">
-            <div class="row">
-                <div class="label">Currencies</div>
-                <label class="file" for="currenciesFile" style="margin-left: auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" widht="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                </label>
-                <input type="file" id="currenciesFile"/>
-            </div>
-            <div class="row">
-                <textarea class="textarea" id="serializedCurrencies" wrap="off"></textarea>
-            </div>
-        </div>
-        <div class="block" style="margin-top: 16px;">
-            <div class="row">
-                <input class="input" id="sourceCurrencyCode"/>
-                <div class="label">&nbsp;&rarr;&nbsp;</div>
-                <input class="input" id="targetCurrencyCode"/>
-                <div class="label">&nbsp;</div>
-                <button class="button button--primary" id="convertCurrency" disabled>Convert currency</button>
-            </div>
-        </div>
+    <div class="divider"></div>
+    <div class="block" style="margin-top: 16px">
+      <div class="row">
+        <button class="button button--primary" id="copy">Translate and preview</button>
+      </div>
     </div>
-
-    <div class="container" id="mirroring">
-        <div class="block" style="margin-top: 16px;">
-            <div class="row">
-                <button class="button button--primary" id="mirror">Mirror</button>
-            </div>
-        </div>
-        <div class="divider"></div>
-        <div class="block">
-            <div class="row">
-                <button class="button button--secondary" id="clip">Clip</button>
-                <div class="label">Clip the node to the boundaries of the parent frame</div>
-            </div>
-        </div>
-        <div class="divider"></div>
-        <div id="mirroringFailures"></div>
+    <div class="divider"></div>
+    <div class="block" style="margin-top: 16px">
+      <div class="row">
+        <button class="button button--primary" id="save">Save selected</button>
+      </div>
     </div>
-
-    <div class="container" id="fonts">
-        <div class="block row">
-            <div class="label">Substitutions</div>
-            <div onclick="downloadFontSubstitutions();" class="file" style="margin-left: auto;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            </div>
-            <label class="file" for="fontSubstitutionsFile">
-                <svg xmlns="http://www.w3.org/2000/svg" widht="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            </label>
-            <input type="file" id="fontSubstitutionsFile"/>
-            <textarea id="serializedFontSubstitutions" style="display: none;">[]</textarea>
-        </div>
-        <div class="block row">
-            <select class="select" id="sourceFontSelector"></select>
-            <div class="label">&rarr;</div>
-            <select class="select" id="targetFontSelector"></select>
-            <div class="label">&nbsp;</div>
-            <button class="button button--secondary" id="defineFontSubstitution">&checkmark;</button>
-        </div>
-        <div class="block container" id="fontSubstitutions"></div>
-        <div class="row">
-            <button class="button button--primary" id="substituteFonts" disabled style="margin-left: auto; margin-right: auto;">Substitute fonts</button>
-        </div>
-    </div>
-
-    <script>
-
-        var fields = null;
-        var selectionFonts = [];
-        var availableFonts = [];
-
-        onmessage = (event) => {
-            const message = event.data.pluginMessage;
-
-            if (message.type === 'settings') {
-                fields = Object.keys(message.settings);
-                fields.forEach(field => {
-                    const element = document.getElementById(field);
-                    if (element.hasAttribute('checked')) {
-                        element.checked = message.settings[field];
-                    } else {
-                        element.value = message.settings[field];
-                    }
-                });
-                renderFontSubstitutions();
-            } else if (message.type === 'available-fonts') {
-                availableFonts = message.availableFonts;
-                renderFontSelector(document.getElementById('targetFontSelector'), availableFonts);
-            } else if (message.type === 'selection-fonts') {
-                selectionFonts = message.selectionFonts;
-                renderFontSelector(document.getElementById('sourceFontSelector'), message.selectionFonts);
-                renderFontSubstitutions();
-            } else if (message.type === 'translation-failures') {
-                updateTranslationFailures(message.failures);
-            } else if (message.type === 'mirroring-failures') {
-                updateMirroringFailures(message.failures);
-            } else if (message.type === 'ready') {
-                document.getElementById('translate').disabled = false;
-                document.getElementById('convertCurrency').disabled = false;
-                document.getElementById('mirror').disabled = false;
-                document.getElementById('clip').disabled = false;
-                document.getElementById('substituteFonts').disabled = false;
-            }
-        };
-
-        document.getElementById('dictionaryFile').onchange = e => loadFile(e, 'serializedDictionary');
-        document.getElementById('dictionaryFile').onclick = e => { e.target.value = null; };
-        document.getElementById('exceptionsFile').onchange = e => loadFile(e, 'serializedExceptions');
-        document.getElementById('exceptionsFile').onclick = e => { e.target.value = null; };
-        document.getElementById('currenciesFile').onchange = e => loadFile(e, 'serializedCurrencies');
-        document.getElementById('currenciesFile').onclick = e => { e.target.value = null; };
-        document.getElementById('fontSubstitutionsFile').onchange = e => {
-            loadFile(e, 'serializedFontSubstitutions', renderFontSubstitutions);
-        };
-        document.getElementById('fontSubstitutionsFile').onclick = e => { e.target.value = null; };
-
-        document.getElementById('translate').onclick = () => {
-            document.getElementById('translate').disabled = true;
-            const settings = getSettings();
-            parent.postMessage({ pluginMessage: { type: 'translate', settings } }, '*')
-        };
-
-        document.getElementById('convertCurrency').onclick = () => {
-            document.getElementById('convertCurrency').disabled = true;
-            const settings = getSettings();
-            parent.postMessage({ pluginMessage: { type: 'convert-currency', settings } }, '*')
-        };
-
-        document.getElementById('mirror').onclick = () => {
-            document.getElementById('mirror').disabled = true;
-            const settings = getSettings();
-            parent.postMessage({ pluginMessage: { type: 'mirror', settings } }, '*')
-        };
-
-        document.getElementById('clip').onclick = () => {
-            document.getElementById('clip').disabled = true;
-            const settings = getSettings();
-            parent.postMessage({ pluginMessage: { type: 'clip', settings } }, '*')
-        };
-
-        document.getElementById('defineFontSubstitution').onclick = defineFontSubstitution;
-        document.getElementById('substituteFonts').onclick = () => {
-            document.getElementById('substituteFonts').disabled = true;
-            const settings = getSettings();
-            parent.postMessage({ pluginMessage: { type: 'substitute-fonts', settings } }, '*')
-        };
-
-        parent.postMessage({ pluginMessage: { type: 'load-settings' } }, '*');
-        parent.postMessage({ pluginMessage: { type: 'load-available-fonts' } }, '*');
-        parent.postMessage({ pluginMessage: { type: 'load-selection-fonts' } }, '*');
-
-        function getSettings() {
-            const result = {};
-            fields.forEach(field => {
-                const element = document.getElementById(field);
-                if (element.hasAttribute('checked')) {
-                    result[field] = element.checked;
-                } else {
-                    result[field] = element.value;
-                }
-            });
-            return result;
-        }
-
-        function loadFile(e, holderId, callback) {
-            const file = e.target.files[0];
-            if (!file) {
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = e => {
-                console.log(e.target.result);
-                document.getElementById(holderId).value = e.target.result;
-                if (callback !== undefined) {
-                    callback.apply();
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        function updateTranslationFailures(failures) {
-            const holder = document.getElementById('translationFailures');
-            holder.innerHTML = '';
-            failures.map(renderError).forEach(element => holder.appendChild(element));
-            holder.appendChild(renderSuggestions(extractSuggestions(failures)));
-        }
-
-        function updateMirroringFailures(failures) {
-            const holder = document.getElementById('mirroringFailures');
-            holder.innerHTML = '';
-            failures.map(renderError).forEach(element => holder.appendChild(element));
-        }
-
-        function renderError(failure) {
-            const {nodeId, error} = failure;
-            const result = document.createElement('div');
-            result.className = 'row block';
-            const link = document.createElement('a');
-            link.href = 'javascript:focusNode("' + nodeId + '");';
-            link.innerText = nodeId;
-            const comment = document.createElement('span');
-            comment.innerText = error;
-            comment.appendChild(link);
-            result.appendChild(comment);
-            return result;
-        }
-
-        function extractSuggestions(failures) {
-            const result = [];
-            const unique = new Set();
-            for (let failure of failures) {
-                for (let suggestion of failure.suggestions) {
-                    if (!unique.has(suggestion)) {
-                        result.push(suggestion);
-                        unique.add(suggestion);
-                    }
-                }
-            }
-            return result;
-        }
-
-        function renderSuggestions(suggestions) {
-            const result = document.createElement('div');
-            if (suggestions.length > 0) {
-                const labelRow = document.createElement('div');
-                labelRow.className = 'row';
-                labelRow.innerHTML = '<div class="label">We suggest to translate the following phrases</div>';
-                result.appendChild(labelRow);
-                const dataRow = document.createElement('div');
-                dataRow.className = 'row';
-                const dataArea = document.createElement('textarea');
-                dataArea.className = 'textarea';
-                dataArea.readOnly = true;
-                dataArea.wrap = 'off';
-                dataArea.value = suggestions.join('\n');
-                dataRow.appendChild(dataArea);
-                result.appendChild(dataRow);
-            }
-            return result;
-        }
-
-        function focusNode(id) {
-            parent.postMessage({ pluginMessage: { type: 'focus-node', id } }, '*');
-        }
-
-        function loadFontSubstitutions() {
-            return JSON.parse(document.getElementById('serializedFontSubstitutions').value);
-        }
-
-        function saveFontSubstitutions(substitutions) {
-            document.getElementById('serializedFontSubstitutions').value = JSON.stringify(substitutions);
-        }
-
-        function defineFontSubstitution() {
-            const sourceFont = JSON.parse(document.getElementById('sourceFontSelector').value);
-            const targetFont = JSON.parse(document.getElementById('targetFontSelector').value);
-            const substitutions = loadFontSubstitutions();
-            let injected = false;
-            for (let substitution of substitutions) {
-                if (substitution.sourceFont.family === sourceFont.family && substitution.sourceFont.style === sourceFont.style) {
-                    substitution.targetFont = targetFont;
-                    injected = true;
-                    break;
-                }
-            }
-            if (!injected) {
-                substitutions.push({sourceFont, targetFont});
-            }
-            saveFontSubstitutions(substitutions);
-            renderFontSubstitutions();
-        }
-
-        function renderFontSelector(selector, fonts) {
-            selector.innerHTML = '';
-            for (let font of fonts) {
-                const option = document.createElement('option');
-                option.value = JSON.stringify(font);
-                option.innerText = `${font.family} (${font.style})`;
-                selector.appendChild(option);
-            }
-        }
-
-        function renderFontSubstitutions() {
-            const substitutions = loadFontSubstitutions();
-            const holder = document.getElementById('fontSubstitutions');
-            holder.innerHTML = '';
-            for (let sourceFont of selectionFonts) {
-                let targetFont = sourceFont;
-                for (let substitution of substitutions) {
-                    if (substitution.sourceFont.family === sourceFont.family && substitution.sourceFont.style === sourceFont.style) {
-                        targetFont = substitution.targetFont;
-                        break;
-                    }
-                }
-                const entry = document.createElement('div');
-                entry.className = 'row';
-                entry.innerHTML = `
-                    <div style="display: flex; justify-content: flex-end; width: 100%;">${sourceFont.family} (${sourceFont.style})</div>
-                    <div>&rarr;</div>
-                    <div style="display: flex; justify-content: flex-begin; width: 100%;">${targetFont.family} (${targetFont.style})</div>
-                `;
-                holder.appendChild(entry);
-            }
-        }
-
-        function downloadFontSubstitutions() {
-            const data = document.getElementById('serializedFontSubstitutions').value;
-            const a = document.createElement('a');
-            a.href = 'data:application/json,' + encodeURIComponent(data);
-            a.setAttribute('download', 'fontSubstitutions.json');
-            a.click();
-        }
-
-        [].forEach.call(document.getElementsByClassName('tab'), tab => {
-            if (tab.className === 'tab') {
-                document.getElementById(tab.getAttribute('with')).style.display = 'none';
-            }
-            tab.onclick = () => {
-                [].forEach.call(document.getElementsByClassName('tab'), tabToHide => {
-                    tabToHide.className = 'tab';
-                    document.getElementById(tabToHide.getAttribute('with')).style.display = 'none';
-                });
-                tab.className = 'tab tab--active';
-                document.getElementById(tab.getAttribute('with')).style.display = 'flex';
-            };
+  </div>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+    integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
+  <script type="module">
+    var fields = null;
+    let language = "";
+    onmessage = (event) => {
+      const message = event.data.pluginMessage;
+      if (!message) {
+        return;
+      }
+      if (message.type === "settings") {
+        fields = Object.keys(message.settings);
+        fields.forEach((field) => {
+          const element = document.getElementById(field);
+          element.value = message.settings[field];
         });
+      } else if (message.type === "ready") {
+        document.getElementById("translate").disabled = false;
+        document.getElementById("copy").disabled = false;
+        document.getElementById("save").disabled = false;
+      } else if (message.type === "content") {
+        let zip = new JSZip();
+        message.content.forEach((data, idx) => {
+          let { lang, bytesMainImage, name, imageExtension } = data;
+          let blob = new Blob([bytesMainImage]);
+          zip.folder(`${lang}`).file(`${name}.${imageExtension}`, blob);
+        });
+        zip.generateAsync({ type: "blob" }).then((content) => {
+          const blobURL = window.URL.createObjectURL(content);
+          const link = document.createElement("a");
+          link.className = "button button--primary";
+          link.href = blobURL;
+          link.download = "export.zip";
+          link.click();
+        });
+      } else if (message.type === "content-to-save") {
+        let zip = new JSZip();
+        message.contentToSave.forEach((data, idx) => {
+          let { bytesMainImage, name, imageExtension, language } = data;
+          let blob = new Blob([bytesMainImage]);
+          zip.folder(`${language}`).file(`${name}.${imageExtension}`, blob);
+        });
+        zip.generateAsync({ type: "blob" }).then((content) => {
+          const blobURL = window.URL.createObjectURL(content);
+          const link = document.createElement("a");
+          link.className = "button button--primary";
+          link.href = blobURL;
+          link.download = "export.zip";
+          link.click();
+        });
+      } else if (message.type === "current-lang") {
+        document.getElementById("changingLanguage").innerHTML = message.currentLanguage;
+      } else if (message.type === "start-to-translate") {
+        document.getElementById("changingLanguage").classList.remove = "d-none";
+        document.getElementById("changingLanguage").classList.add = "d-block";
+      } else if (message.type === "translation-ended") {
+        document.getElementById("changingLanguage").classList.add = "d-none";
+        document.getElementById("changingLanguage").classList.remove = "d-block";
+      }
+    };
 
-    </script>
+    document.getElementById("dictionaryFile").onchange = (e) => loadFile(e, "serializedDictionary");
+    document.getElementById("dictionaryFile").onclick = (e) => {
+      e.target.value = null;
+    };
+
+    document.getElementById("changingLanguage").innerText = language;
+
+    document.getElementById("translate").onclick = () => {
+      document.getElementById("translate").disabled = true;
+      const settings = getSettings();
+      parent.postMessage({ pluginMessage: { type: "translate-and-save", settings } }, "*");
+    };
+
+    document.getElementById("copy").onclick = () => {
+      document.getElementById("copy").disabled = true;
+      const settings = getSettings();
+      parent.postMessage({ pluginMessage: { type: "copy", settings } }, "*");
+    };
+
+    document.getElementById("save").onclick = () => {
+      document.getElementById("save").disabled = true;
+      const settings = getSettings();
+      parent.postMessage({ pluginMessage: { type: "save", settings } }, "*");
+    };
+
+    parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
+
+    function getSettings() {
+      const result = {};
+      fields.forEach((field) => {
+        const element = document.getElementById(field);
+        if (element.type === "checkbox") {
+          result[field] = element.checked;
+        } else {
+          result[field] = element.value;
+        }
+      });
+      return result;
+    }
+
+    function loadFile(e, holderId, callback) {
+      const file = e.target.files[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById(holderId).value = e.target.result;
+        if (callback !== undefined) {
+          callback.apply();
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function focusNode(id) {
+      parent.postMessage({ pluginMessage: { type: "focus-node", id } }, "*");
+    }
+  </script>
 </body>
