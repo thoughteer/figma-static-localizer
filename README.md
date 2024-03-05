@@ -214,6 +214,6 @@ And second, you will be able to translate each paragraph as a separate line of t
 #### What if some phrase has different translations depending on the context?
 
 Currently, the solution is cumbersome.
-You can put several [word joiners](https://unicode-table.com/en/#2060) after the phrase in both the document and the dictionary.
+You can put several [word joiners](https://symbl.cc/en/#2060) after the phrase in both the document and the dictionary.
 These characters are hidden, so you'll end up with a phrase that differs from the original one, but looks exactly the same.
 Just add a different translation for the new phrase.
